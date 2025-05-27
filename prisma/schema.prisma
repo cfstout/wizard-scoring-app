@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  
+  gameParticipations GamePlayer[]
+  bids              Bid[]
+  
+  @@map("players")
+}
+
+model Game {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+  status    GameStatus @default(SETUP)
+  playerCount Int
+  totalRounds Int
+  currentRound Int @default(1)
+  
+  players   GamePlayer[]
+  rounds    Round[]
+  
+  @@map("games")
+}
+
+model GamePlayer {
+  id       String @id @default(cuid())
+  gameId   String
+  playerId String
+  totalScore Int @default(0)
+  position Int?
+  
+  game     Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player   Player @relation(fields: [playerId], references: [id])
+  
+  @@unique([gameId, playerId])
+  @@map("game_players")
+}
+
+model Round {
+  id          String @id @default(cuid())
+  gameId      String
+  roundNumber Int
+  cardsPerPlayer Int
+  trumpSuit   String?
+  status      RoundStatus @default(BIDDING)
+  
+  game        Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  bids        Bid[]
+  
+  @@unique([gameId, roundNumber])
+  @@map("rounds")
+}
+
+model Bid {
+  id          String @id @default(cuid())
+  roundId     String
+  playerId    String
+  bidAmount   Int
+  tricksTaken Int?
+  score       Int?
+  
+  round       Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  player      Player @relation(fields: [playerId], references: [id])
+  
+  @@unique([roundId, playerId])
+  @@map("bids")
+}
+
+enum GameStatus {
+  SETUP
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum RoundStatus {
+  BIDDING
+  PLAYING
+  COMPLETED
+}
