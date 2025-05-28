@@ -50,6 +50,13 @@ export default function GameSetup({ onGameCreated }: GameSetupProps) {
 
       const game = await response.json()
       if (response.ok) {
+        // Update game status to SEAT_ARRANGEMENT
+        await fetch(`/api/games/${game.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'SEAT_ARRANGEMENT' })
+        })
+        
         onGameCreated(game.id)
       }
     } catch (error) {
@@ -88,12 +95,18 @@ export default function GameSetup({ onGameCreated }: GameSetupProps) {
         )}
       </div>
 
+      {selectedPlayers.length >= 3 && (
+        <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+          <strong>Next:</strong> You'll arrange the seating order to determine dealer rotation and bidding order.
+        </div>
+      )}
+
       <button
         onClick={handleCreateGame}
         disabled={loading || selectedPlayers.length < 3 || selectedPlayers.length > 6}
         className="w-full px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50"
       >
-        {loading ? 'Creating Game...' : 'Start Game'}
+        {loading ? 'Creating Game...' : 'Continue to Seat Arrangement'}
       </button>
     </div>
   )

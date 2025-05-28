@@ -1,11 +1,17 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { calculateRemainingTricks } from '@/lib/utils'
+import { calculateRemainingTricks, calculateDealerSeat, calculateFirstBidderSeat } from '@/lib/utils'
 
 interface Player {
   id: string
   name: string
   totalScore: number
+}
+
+interface GamePlayer {
+  player: Player
+  totalScore: number
+  seatPosition: number
 }
 
 interface Game {
@@ -14,10 +20,7 @@ interface Game {
   totalRounds: number
   playerCount: number
   status: string
-  players: Array<{
-    player: Player
-    totalScore: number
-  }>
+  players: GamePlayer[]
 }
 
 interface Round {
@@ -51,7 +54,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
       const gameData = await response.json()
       setGame(gameData)
       
-      if (gameData.status === 'SETUP') {
+      if (gameData.status === 'IN_PROGRESS') {
         await startNextRound(gameData)
       }
     } catch (error) {
@@ -199,6 +202,9 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
     return <div className="p-4">Loading game...</div>
   }
 
+  // Sort players by seat position for display
+  const sortedPlayers = [...game.players].sort((a, b) => a.seatPosition - b.seatPosition)
+
   const allBidsEntered = game.players.every(({ player }) => 
     bids[player.id] !== undefined
   )
@@ -209,6 +215,13 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
 
   const totalBids = Object.values(bids).reduce((sum, bid) => sum + (bid || 0), 0)
   const remainingTricks = calculateRemainingTricks(currentRound.cardsPerPlayer, Object.values(bids))
+
+  // Calculate dealer and first bidder
+  const dealerSeat = calculateDealerSeat(currentRound.roundNumber, game.playerCount)
+  const firstBidderSeat = calculateFirstBidderSeat(currentRound.roundNumber, game.playerCount)
+  
+  const dealer = game.players.find(gp => gp.seatPosition === dealerSeat)
+  const firstBidder = game.players.find(gp => gp.seatPosition === firstBidderSeat)
 
   return (
     <div className="space-y-6">
@@ -223,6 +236,24 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
         )}
       </div>
 
+      {/* Dealer and Bidding Order Info */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
+          <div>
+            <h3 className="font-semibold text-blue-800">Dealer</h3>
+            <p className="text-blue-700">
+              🃏 {dealer?.player.name} (Seat {dealerSeat})
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold text-blue-800">First to Bid</h3>
+            <p className="text-blue-700">
+              🎯 {firstBidder?.player.name} (Seat {firstBidderSeat})
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Current Standings */}
       {currentRound.roundNumber > 1 && (
         <div className="bg-gray-50 rounded-lg p-4">
@@ -235,6 +266,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-sm">#{index + 1}</span>
                     <span className="font-medium text-sm">{playerGame.player.name}</span>
+                    <span className="text-xs text-gray-500">(Seat {playerGame.seatPosition})</span>
                     {index === 0 && (
                       <span className="text-yellow-500">👑</span>
                     )}
@@ -261,31 +293,44 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                 className="px-3 py-2 border border-gray-300 rounded-md"
               >
                 <option value="">No Trump</option>
-                <option value="Hearts">Hearts</option>
-                <option value="Diamonds">Diamonds</option>
-                <option value="Clubs">Clubs</option>
-                <option value="Spades">Spades</option>
+                <option value="Hearts">Hearts ♥️</option>
+                <option value="Diamonds">Diamonds ♦️</option>
+                <option value="Clubs">Clubs ♣️</option>
+                <option value="Spades">Spades ♠️</option>
               </select>
             </div>
           )}
 
           <div className="grid gap-4">
-            {game.players.map(({ player }) => (
-              <div key={player.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <span className="font-medium">{player.name}</span>
-                <div className="flex items-center space-x-2">
-                  <span>Bid:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={currentRound.cardsPerPlayer}
-                    value={bids[player.id] ?? ''}
-                    onChange={(e) => handleBidChange(player.id, parseInt(e.target.value) || 0)}
-                    className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
-                  />
+            {sortedPlayers.map((gamePlayer) => {
+              const isDealer = gamePlayer.seatPosition === dealerSeat
+              const isFirstBidder = gamePlayer.seatPosition === firstBidderSeat
+              
+              return (
+                <div key={gamePlayer.player.id} className={`flex items-center justify-between p-3 border rounded-lg ${
+                  isDealer ? 'border-orange-300 bg-orange-50' : 
+                  isFirstBidder ? 'border-green-300 bg-green-50' : ''
+                }`}>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">{gamePlayer.player.name}</span>
+                    <span className="text-sm text-gray-500">(Seat {gamePlayer.seatPosition})</span>
+                    {isDealer && <span className="text-orange-600 text-sm">🃏 Dealer</span>}
+                    {isFirstBidder && <span className="text-green-600 text-sm">🎯 First Bid</span>}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span>Bid:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={currentRound.cardsPerPlayer}
+                      value={bids[gamePlayer.player.id] ?? ''}
+                      onChange={(e) => handleBidChange(gamePlayer.player.id, parseInt(e.target.value) || 0)}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           <div className="text-center p-3 bg-gray-50 rounded-lg">
@@ -310,27 +355,35 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           <h2 className="text-xl font-semibold">Playing Phase</h2>
           
           <div className="grid gap-4">
-            {game.players.map(({ player }) => (
-              <div key={player.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <span className="font-medium">{player.name}</span>
-                  <span className="ml-2 text-gray-600">
-                    (Bid: {bids[player.id] || 0})
-                  </span>
+            {sortedPlayers.map((gamePlayer) => {
+              const isDealer = gamePlayer.seatPosition === dealerSeat
+              
+              return (
+                <div key={gamePlayer.player.id} className={`flex items-center justify-between p-3 border rounded-lg ${
+                  isDealer ? 'border-orange-300 bg-orange-50' : ''
+                }`}>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">{gamePlayer.player.name}</span>
+                    <span className="text-sm text-gray-500">(Seat {gamePlayer.seatPosition})</span>
+                    {isDealer && <span className="text-orange-600 text-sm">🃏 Dealer</span>}
+                    <span className="ml-2 text-gray-600">
+                      (Bid: {bids[gamePlayer.player.id] || 0})
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span>Tricks Taken:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={currentRound.cardsPerPlayer}
+                      value={tricksTaken[gamePlayer.player.id] ?? ''}
+                      onChange={(e) => handleTricksChange(gamePlayer.player.id, parseInt(e.target.value) || 0)}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span>Tricks Taken:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={currentRound.cardsPerPlayer}
-                    value={tricksTaken[player.id] ?? ''}
-                    onChange={(e) => handleTricksChange(player.id, parseInt(e.target.value) || 0)}
-                    className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
-                  />
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           <button

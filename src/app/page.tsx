@@ -2,10 +2,11 @@
 import { useState } from 'react'
 import PlayerForm from './components/PlayerForm'
 import GameSetup from './components/GameSetup'
+import SeatArrangement from './components/SeatArrangement'
 import GameBoard from './components/GameBoard'
 import ScoreBoard from './components/ScoreBoard'
 
-type AppState = 'setup' | 'game' | 'scores'
+type AppState = 'setup' | 'seats' | 'game' | 'scores'
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>('setup')
@@ -18,6 +19,10 @@ export default function Home() {
 
   const handleGameCreated = (gameId: string) => {
     setCurrentGameId(gameId)
+    setAppState('seats')
+  }
+
+  const handleSeatsArranged = () => {
     setAppState('game')
   }
 
@@ -49,6 +54,10 @@ export default function Home() {
               <GameSetup onGameCreated={handleGameCreated} />
             </div>
           </div>
+        )}
+
+        {appState === 'seats' && currentGameId && (
+          <SeatArrangement gameId={currentGameId} onSeatsArranged={handleSeatsArranged} />
         )}
 
         {appState === 'game' && currentGameId && (

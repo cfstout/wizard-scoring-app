@@ -40,11 +40,13 @@ model GamePlayer {
   playerId String
   totalScore Int @default(0)
   position Int?
+  seatPosition Int? // New field for seat arrangement (1-based, clockwise)
   
   game     Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
   player   Player @relation(fields: [playerId], references: [id])
   
   @@unique([gameId, playerId])
+  @@unique([gameId, seatPosition]) // Ensure unique seat positions per game
   @@map("game_players")
 }
 
@@ -80,6 +82,7 @@ model Bid {
 
 enum GameStatus {
   SETUP
+  SEAT_ARRANGEMENT
   IN_PROGRESS
   COMPLETED
 }
