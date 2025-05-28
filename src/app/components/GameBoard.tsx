@@ -176,14 +176,17 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
         throw new Error(`Failed to complete round: ${response.status}`)
       }
 
+      // Refresh game data to get updated scores
+      const gameResponse = await fetch(`/api/games/${gameId}`)
+      const updatedGameData = await gameResponse.json()
+      setGame(updatedGameData)
+
       // Check if game is complete
-      if (game.currentRound >= game.totalRounds) {
+      if (updatedGameData.currentRound > updatedGameData.totalRounds) {
         onGameEnd()
       } else {
         // Start next round
-        const updatedGame = { ...game, currentRound: game.currentRound + 1 }
-        setGame(updatedGame)
-        await startNextRound(updatedGame)
+        await startNextRound(updatedGameData)
       }
     } catch (error) {
       console.error('Failed to complete round:', error)
@@ -197,11 +200,11 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
   }
 
   const allBidsEntered = game.players.every(({ player }) => 
-    bids[player.id] !== undefined && bids[player.id] >= 0
+    bids[player.id] !== undefined
   )
   
   const allTricksEntered = game.players.every(({ player }) => 
-    tricksTaken[player.id] !== undefined && tricksTaken[player.id] >= 0
+    tricksTaken[player.id] !== undefined
   )
 
   const totalBids = Object.values(bids).reduce((sum, bid) => sum + (bid || 0), 0)
@@ -219,6 +222,29 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           <p className="text-lg font-semibold">Trump: {currentRound.trumpSuit}</p>
         )}
       </div>
+
+      {/* Current Standings */}
+      {currentRound.roundNumber > 1 && (
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-3 text-center">Current Standings</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {[...game.players]
+              .sort((a, b) => b.totalScore - a.totalScore)
+              .map((playerGame, index) => (
+                <div key={playerGame.player.id} className="flex justify-between items-center p-2 bg-white rounded border">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-sm">#{index + 1}</span>
+                    <span className="font-medium text-sm">{playerGame.player.name}</span>
+                    {index === 0 && (
+                      <span className="text-yellow-500">👑</span>
+                    )}
+                  </div>
+                  <span className="font-bold text-sm">{playerGame.totalScore}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {currentRound.status === 'BIDDING' && (
         <div className="space-y-4">
@@ -253,7 +279,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                     type="number"
                     min="0"
                     max={currentRound.cardsPerPlayer}
-                    value={bids[player.id] || ''}
+                    value={bids[player.id] ?? ''}
                     onChange={(e) => handleBidChange(player.id, parseInt(e.target.value) || 0)}
                     className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
                   />
@@ -298,7 +324,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                     type="number"
                     min="0"
                     max={currentRound.cardsPerPlayer}
-                    value={tricksTaken[player.id] || ''}
+                    value={tricksTaken[player.id] ?? ''}
                     onChange={(e) => handleTricksChange(player.id, parseInt(e.target.value) || 0)}
                     className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
                   />
