@@ -64,6 +64,8 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
     const cardsPerPlayer = roundNumber
     
     try {
+      console.log('Creating round:', { gameId: gameData.id, roundNumber, cardsPerPlayer })
+      
       const response = await fetch('/api/rounds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,6 +76,12 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           trumpSuit: trumpSuit || null
         })
       })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Round creation failed:', response.status, errorText)
+        throw new Error(`Failed to create round: ${response.status}`)
+      }
       
       const round = await response.json()
       setCurrentRound(round)
@@ -115,14 +123,27 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
       
       await Promise.all(bidPromises)
       
-      // Update round status to PLAYING
-      await fetch(`/api/rounds/${currentRound.id}`, {
+      // Update round status to PLAYING using the individual round endpoint
+      const updateResponse = await fetch(`/api/rounds/${currentRound.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'PLAYING', trumpSuit })
+        body: JSON.stringify({ 
+          status: 'PLAYING', 
+          trumpSuit: trumpSuit || null 
+        })
       })
       
-      setCurrentRound(prev => prev ? { ...prev, status: 'PLAYING', trumpSuit } : null)
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text()
+        console.error('Failed to update round status:', updateResponse.status, errorText)
+        throw new Error(`Failed to update round: ${updateResponse.status}`)
+      }
+      
+      setCurrentRound(prev => prev ? { 
+        ...prev, 
+        status: 'PLAYING', 
+        trumpSuit: trumpSuit || undefined 
+      } : null)
     } catch (error) {
       console.error('Failed to submit bids:', error)
     } finally {
@@ -135,6 +156,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
 
     setLoading(true)
     try {
+      // Use the PATCH endpoint for completing rounds (not POST)
       const response = await fetch('/api/rounds', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -148,16 +170,20 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
         })
       })
 
-      if (response.ok) {
-        // Check if game is complete
-        if (game.currentRound >= game.totalRounds) {
-          onGameEnd()
-        } else {
-          // Start next round
-          const updatedGame = { ...game, currentRound: game.currentRound + 1 }
-          setGame(updatedGame)
-          await startNextRound(updatedGame)
-        }
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Failed to complete round:', response.status, errorText)
+        throw new Error(`Failed to complete round: ${response.status}`)
+      }
+
+      // Check if game is complete
+      if (game.currentRound >= game.totalRounds) {
+        onGameEnd()
+      } else {
+        // Start next round
+        const updatedGame = { ...game, currentRound: game.currentRound + 1 }
+        setGame(updatedGame)
+        await startNextRound(updatedGame)
       }
     } catch (error) {
       console.error('Failed to complete round:', error)
@@ -171,11 +197,11 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
   }
 
   const allBidsEntered = game.players.every(({ player }) => 
-    bids[player.id] !== undefined
+    bids[player.id] !== undefined && bids[player.id] >= 0
   )
   
   const allTricksEntered = game.players.every(({ player }) => 
-    tricksTaken[player.id] !== undefined
+    tricksTaken[player.id] !== undefined && tricksTaken[player.id] >= 0
   )
 
   const totalBids = Object.values(bids).reduce((sum, bid) => sum + (bid || 0), 0)
