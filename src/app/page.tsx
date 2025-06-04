@@ -5,8 +5,9 @@ import GameSetup from './components/GameSetup'
 import SeatArrangement from './components/SeatArrangement'
 import GameBoard from './components/GameBoard'
 import ScoreBoard from './components/ScoreBoard'
+import GameCompletionModal from './components/GameCompletionModal'
 
-type AppState = 'setup' | 'seats' | 'game' | 'scores'
+type AppState = 'setup' | 'seats' | 'game' | 'completed' | 'scores'
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>('setup')
@@ -27,6 +28,10 @@ export default function Home() {
   }
 
   const handleGameEnd = () => {
+    setAppState('completed')
+  }
+
+  const handleViewScores = () => {
     setAppState('scores')
   }
 
@@ -66,15 +71,29 @@ export default function Home() {
           </div>
         )}
 
+        {appState === 'completed' && currentGameId && (
+          <GameCompletionModal 
+            gameId={currentGameId} 
+            onNewGame={handleNewGame}
+            onViewScores={handleViewScores}
+          />
+        )}
+
         {appState === 'scores' && currentGameId && (
           <div className="space-y-4">
             <ScoreBoard gameId={currentGameId} />
-            <div className="text-center">
+            <div className="text-center space-x-4">
               <button
                 onClick={handleNewGame}
                 className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
               >
                 Start New Game
+              </button>
+              <button
+                onClick={() => setAppState('completed')}
+                className="px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+              >
+                Back to Results
               </button>
             </div>
           </div>

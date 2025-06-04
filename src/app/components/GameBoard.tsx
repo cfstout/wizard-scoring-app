@@ -1,6 +1,5 @@
-'use client'
 import { useState, useEffect } from 'react'
-import { calculateRemainingTricks, calculateDealerSeat, calculateFirstBidderSeat } from '@/lib/utils'
+import { calculateRemainingTricks, calculateDealerSeat, calculateFirstBidderSeat, calculateScore } from '@/lib/utils'
 
 interface Player {
   id: string
@@ -14,13 +13,13 @@ interface GamePlayer {
   seatPosition: number
 }
 
-interface Game {
+interface Bid {
   id: string
-  currentRound: number
-  totalRounds: number
-  playerCount: number
-  status: string
-  players: GamePlayer[]
+  playerId: string
+  player: Player
+  bidAmount: number
+  tricksTaken: number | null
+  score: number | null
 }
 
 interface Round {
@@ -29,6 +28,17 @@ interface Round {
   cardsPerPlayer: number
   trumpSuit?: string
   status: string
+  bids: Bid[]
+}
+
+interface Game {
+  id: string
+  currentRound: number
+  totalRounds: number
+  playerCount: number
+  status: string
+  players: GamePlayer[]
+  rounds: Round[]
 }
 
 interface GameBoardProps {
@@ -43,6 +53,9 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
   const [tricksTaken, setTricksTaken] = useState<{ [playerId: string]: number }>({})
   const [trumpSuit, setTrumpSuit] = useState('')
   const [loading, setLoading] = useState(false)
+  const [editingRound, setEditingRound] = useState<string | null>(null)
+  const [editBids, setEditBids] = useState<{ [playerId: string]: number }>({})
+  const [editTricks, setEditTricks] = useState<{ [playerId: string]: number }>({})
 
   useEffect(() => {
     fetchGame()
@@ -75,8 +88,8 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
         body: JSON.stringify({
           gameId: gameData.id,
           roundNumber,
-          cardsPerPlayer,
-          trumpSuit: trumpSuit || null
+          cardsPerPlayer
+          // Don't set trumpSuit here - it should be set when submitting bids
         })
       })
       
@@ -154,8 +167,29 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
     }
   }
 
+  const validateTricksTaken = (): { valid: boolean; message: string } => {
+    const totalTricks = Object.values(tricksTaken).reduce((sum, tricks) => sum + (tricks || 0), 0)
+    const expectedTricks = currentRound?.cardsPerPlayer || 0
+    
+    if (totalTricks !== expectedTricks) {
+      return {
+        valid: false,
+        message: `Total tricks taken (${totalTricks}) must equal cards per player (${expectedTricks})`
+      }
+    }
+    
+    return { valid: true, message: '' }
+  }
+
   const completeRound = async () => {
     if (!currentRound || !game) return
+
+    // Validate tricks taken
+    const validation = validateTricksTaken()
+    if (!validation.valid) {
+      alert(validation.message)
+      return
+    }
 
     setLoading(true)
     try {
@@ -198,12 +232,76 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
     }
   }
 
+  const handleEditRound = (round: Round) => {
+    setEditingRound(round.id)
+    
+    // Initialize edit state with current values
+    const bidData: { [playerId: string]: number } = {}
+    const trickData: { [playerId: string]: number } = {}
+    
+    round.bids.forEach(bid => {
+      bidData[bid.playerId] = bid.bidAmount
+      trickData[bid.playerId] = bid.tricksTaken || 0
+    })
+    
+    setEditBids(bidData)
+    setEditTricks(trickData)
+  }
+
+  const saveEditedRound = async (roundId: string) => {
+    if (!game) return
+
+    // Validate edited tricks
+    const totalTricks = Object.values(editTricks).reduce((sum, tricks) => sum + (tricks || 0), 0)
+    const round = game.rounds.find(r => r.id === roundId)
+    if (!round) return
+
+    if (totalTricks !== round.cardsPerPlayer) {
+      alert(`Total tricks taken (${totalTricks}) must equal cards per player (${round.cardsPerPlayer})`)
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch('/api/rounds', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roundId,
+          bids: game.players.map(({ player }) => ({
+            playerId: player.id,
+            bidAmount: editBids[player.id] || 0
+          })),
+          tricksTaken: editTricks
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update round')
+      }
+
+      // Refresh game data
+      await fetchGame()
+      setEditingRound(null)
+    } catch (error) {
+      console.error('Failed to save edited round:', error)
+      alert('Failed to save changes. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!game || !currentRound) {
     return <div className="p-4">Loading game...</div>
   }
 
-  // Sort players by seat position for display
-  const sortedPlayers = [...game.players].sort((a, b) => a.seatPosition - b.seatPosition)
+  const firstBidderSeat = calculateFirstBidderSeat(currentRound.roundNumber, game.playerCount)
+  // Sort players by play order (first bidder at top, dealer at bottom)
+  const sortedPlayers = [...game.players].sort((a, b) => {
+    const aOrder = (a.seatPosition - firstBidderSeat + game.playerCount) % game.playerCount
+    const bOrder = (b.seatPosition - firstBidderSeat + game.playerCount) % game.playerCount
+    return aOrder - bOrder
+  })
 
   const allBidsEntered = game.players.every(({ player }) => 
     bids[player.id] !== undefined
@@ -218,10 +316,15 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
 
   // Calculate dealer and first bidder
   const dealerSeat = calculateDealerSeat(currentRound.roundNumber, game.playerCount)
-  const firstBidderSeat = calculateFirstBidderSeat(currentRound.roundNumber, game.playerCount)
   
   const dealer = game.players.find(gp => gp.seatPosition === dealerSeat)
   const firstBidder = game.players.find(gp => gp.seatPosition === firstBidderSeat)
+
+  // Get completed rounds for display (most recent first)
+  const completedRounds = game.rounds.filter(r => r.status === 'COMPLETED').sort((a, b) => b.roundNumber - a.roundNumber)
+
+  // Calculate tricks validation
+  const tricksValidation = validateTricksTaken()
 
   return (
     <div className="space-y-6">
@@ -281,30 +384,33 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
       {currentRound.status === 'BIDDING' && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Bidding Phase</h2>
+          <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+            Players are shown in bidding order: first bidder at top, dealer at bottom
+          </div>
           
-          {!currentRound.trumpSuit && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
-                Trump Suit (optional):
-              </label>
-              <select
-                value={trumpSuit}
-                onChange={(e) => setTrumpSuit(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md"
-              >
-                <option value="">No Trump</option>
-                <option value="Hearts">Hearts ♥️</option>
-                <option value="Diamonds">Diamonds ♦️</option>
-                <option value="Clubs">Clubs ♣️</option>
-                <option value="Spades">Spades ♠️</option>
-              </select>
-            </div>
-          )}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              Trump Suit (optional):
+            </label>
+            <select
+              value={trumpSuit}
+              onChange={(e) => setTrumpSuit(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="">No Trump</option>
+              <option value="Hearts">Hearts ♥️</option>
+              <option value="Diamonds">Diamonds ♦️</option>
+              <option value="Clubs">Clubs ♣️</option>
+              <option value="Spades">Spades ♠️</option>
+            </select>
+          </div>
 
           <div className="grid gap-4">
-            {sortedPlayers.map((gamePlayer) => {
+            {sortedPlayers.map((gamePlayer, index) => {
               const isDealer = gamePlayer.seatPosition === dealerSeat
               const isFirstBidder = gamePlayer.seatPosition === firstBidderSeat
+              const isFirstInOrder = index === 0
+              const isLastInOrder = index === sortedPlayers.length - 1
               
               return (
                 <div key={gamePlayer.player.id} className={`flex items-center justify-between p-3 border rounded-lg ${
@@ -312,10 +418,13 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                   isFirstBidder ? 'border-green-300 bg-green-50' : ''
                 }`}>
                   <div className="flex items-center space-x-2">
+                    <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-bold">
+                      {index + 1}
+                    </span>
                     <span className="font-medium">{gamePlayer.player.name}</span>
                     <span className="text-sm text-gray-500">(Seat {gamePlayer.seatPosition})</span>
-                    {isDealer && <span className="text-orange-600 text-sm">🃏 Dealer</span>}
-                    {isFirstBidder && <span className="text-green-600 text-sm">🎯 First Bid</span>}
+                    {isFirstInOrder && <span className="text-green-600 text-sm">🎯 First Bid</span>}
+                    {isLastInOrder && <span className="text-orange-600 text-sm">🃏 Dealer</span>}
                   </div>
                   <div className="flex items-center space-x-2">
                     <span>Bid:</span>
@@ -353,19 +462,27 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
       {currentRound.status === 'PLAYING' && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Playing Phase</h2>
+          <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+            Players are shown in play order: dealer at bottom
+          </div>
           
           <div className="grid gap-4">
-            {sortedPlayers.map((gamePlayer) => {
+            {sortedPlayers.map((gamePlayer, index) => {
               const isDealer = gamePlayer.seatPosition === dealerSeat
+              const isFirstInOrder = index === 0
+              const isLastInOrder = index === sortedPlayers.length - 1
               
               return (
                 <div key={gamePlayer.player.id} className={`flex items-center justify-between p-3 border rounded-lg ${
                   isDealer ? 'border-orange-300 bg-orange-50' : ''
                 }`}>
                   <div className="flex items-center space-x-2">
+                    <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-bold">
+                      {index + 1}
+                    </span>
                     <span className="font-medium">{gamePlayer.player.name}</span>
                     <span className="text-sm text-gray-500">(Seat {gamePlayer.seatPosition})</span>
-                    {isDealer && <span className="text-orange-600 text-sm">🃏 Dealer</span>}
+                    {isLastInOrder && <span className="text-orange-600 text-sm">🃏 Dealer</span>}
                     <span className="ml-2 text-gray-600">
                       (Bid: {bids[gamePlayer.player.id] || 0})
                     </span>
@@ -386,13 +503,159 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
             })}
           </div>
 
+          {/* Tricks Validation Display */}
+          {!tricksValidation.valid && Object.keys(tricksTaken).length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-700 text-center">{tricksValidation.message}</p>
+            </div>
+          )}
+
+          {tricksValidation.valid && Object.keys(tricksTaken).length === game.players.length && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-700 text-center">✓ Tricks total is correct</p>
+            </div>
+          )}
+
           <button
             onClick={completeRound}
-            disabled={!allTricksEntered || loading}
+            disabled={!allTricksEntered || !tricksValidation.valid || loading}
             className="w-full px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50"
           >
             {loading ? 'Completing Round...' : 'Complete Round'}
           </button>
+        </div>
+      )}
+
+      {/* Completed Rounds History */}
+      {completedRounds.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="text-lg font-semibold mb-3">Round History</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-2">Round</th>
+                  {sortedPlayers.map(({ player }, playerIndex) => (
+                    <th key={player.id} className="text-center p-2 min-w-[100px]">
+                      <div className="flex flex-col items-center space-y-1">
+                        <span className="text-xs bg-gray-200 rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                          {playerIndex + 1}
+                        </span>
+                        <div>{player.name}</div>
+                        <div className="text-xs text-gray-500">
+                          (Seat {game.players.find(gp => gp.player.id === player.id)?.seatPosition})
+                        </div>
+                      </div>
+                    </th>
+                  ))}
+                  <th className="text-center p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedRounds.map((round) => (
+                  <tr key={round.id} className="border-b">
+                    <td className="p-2 font-medium">
+                      <div>Round {round.roundNumber}</div>
+                      <div className="text-xs text-gray-500">{round.cardsPerPlayer} cards</div>
+                      {round.trumpSuit && (
+                        <div className="text-xs text-blue-600">{round.trumpSuit}</div>
+                      )}
+                    </td>
+                    {sortedPlayers.map(({ player }) => {
+                      const bid = round.bids.find(b => b.playerId === player.id)
+                      const isEditing = editingRound === round.id
+                      
+                      return (
+                        <td key={player.id} className="text-center p-2">
+                          {bid ? (
+                            <div>
+                              {isEditing ? (
+                                <div className="space-y-1">
+                                  <div className="flex justify-center space-x-1">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={round.cardsPerPlayer}
+                                      value={editBids[player.id] ?? bid.bidAmount}
+                                      onChange={(e) => setEditBids(prev => ({
+                                        ...prev,
+                                        [player.id]: parseInt(e.target.value) || 0
+                                      }))}
+                                      className="w-12 px-1 py-0.5 border rounded text-xs text-center"
+                                      placeholder="Bid"
+                                    />
+                                    <span className="text-xs self-center">/</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={round.cardsPerPlayer}
+                                      value={editTricks[player.id] ?? (bid.tricksTaken || 0)}
+                                      onChange={(e) => setEditTricks(prev => ({
+                                        ...prev,
+                                        [player.id]: parseInt(e.target.value) || 0
+                                      }))}
+                                      className="w-12 px-1 py-0.5 border rounded text-xs text-center"
+                                      placeholder="Taken"
+                                    />
+                                  </div>
+                                  <div className="text-xs font-bold">
+                                    {calculateScore(
+                                      editBids[player.id] ?? bid.bidAmount,
+                                      editTricks[player.id] ?? (bid.tricksTaken || 0)
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="text-xs text-gray-600">
+                                    {bid.bidAmount}/{bid.tricksTaken}
+                                  </div>
+                                  <div className={`font-bold ${bid.score && bid.score >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {bid.score && bid.score > 0 ? '+' : ''}{bid.score}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td className="text-center p-2">
+                      {editingRound === round.id ? (
+                        <div className="space-x-1">
+                          <button
+                            onClick={() => saveEditedRound(round.id)}
+                            disabled={loading}
+                            className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingRound(null)}
+                            className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleEditRound(round)}
+                          className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="text-xs text-gray-500 mt-2">
+            Format: Bid/Taken, Score | Players ordered by current round's bidding/play order
+          </div>
         </div>
       )}
     </div>
