@@ -7,10 +7,11 @@ export async function GET() {
       include: {
         gameParticipations: {
           include: {
+            game: true,
+          },
+          where: {
             game: {
-              where: {
-                status: 'COMPLETED',
-              },
+              status: 'COMPLETED',
             },
           },
         },
@@ -18,13 +19,17 @@ export async function GET() {
     })
 
     const playerStats = players.map(player => {
-      const completedGames = player.gameParticipations.filter(gp => gp.game.status === 'COMPLETED')
+      const completedGames = player.gameParticipations.filter(
+        (gp: any) => gp.game.status === 'COMPLETED'
+      )
 
-      const wins = completedGames.filter(gp => gp.position === 1).length
+      const wins = completedGames.filter((gp: any) => gp.position === 1).length
       const totalGames = completedGames.length
       const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0
       const averageScore =
-        totalGames > 0 ? completedGames.reduce((sum, gp) => sum + gp.totalScore, 0) / totalGames : 0
+        totalGames > 0
+          ? completedGames.reduce((sum: number, gp: any) => sum + gp.totalScore, 0) / totalGames
+          : 0
 
       return {
         ...player,
