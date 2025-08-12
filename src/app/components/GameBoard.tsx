@@ -5,6 +5,9 @@ import {
   calculateFirstBidderSeat,
   calculateScore,
 } from '@/lib/utils'
+import { useGames, usePlayers } from '@/hooks/useLocalStorage'
+import { Game, Round, Bid } from '@/types/storage'
+import { generateId } from '@/lib/uuid'
 
 interface Player {
   id: string
@@ -52,6 +55,8 @@ interface GameBoardProps {
 }
 
 export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
+  const { getGame, saveGame } = useGames()
+  const { players: allPlayers } = usePlayers()
   const [game, setGame] = useState<Game | null>(null)
   const [currentRound, setCurrentRound] = useState<Round | null>(null)
   const [bids, setBids] = useState<{ [playerId: string]: number }>({})
@@ -64,17 +69,18 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
 
   const fetchGame = useCallback(async () => {
     try {
-      const response = await fetch(`/api/games/${gameId}`)
-      const gameData = await response.json()
-      setGame(gameData)
+      const gameData = await getGame(gameId)
+      if (gameData) {
+        setGame(gameData)
 
-      if (gameData.status === 'IN_PROGRESS') {
-        await startNextRound(gameData)
+        if (gameData.status === 'in_progress') {
+          await startNextRound(gameData)
+        }
       }
     } catch (error) {
       console.error('Failed to fetch game:', error)
     }
-  }, [gameId])
+  }, [gameId, getGame])
 
   useEffect(() => {
     fetchGame()

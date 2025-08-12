@@ -1,33 +1,19 @@
 'use client'
-import { useState, useEffect } from 'react'
-
-interface Player {
-  id: string
-  name: string
-}
+import { useState } from 'react'
+import { usePlayers, useGames } from '@/hooks/useLocalStorage'
+import { Player, Game, GamePlayer } from '@/types/storage'
+import { generateId } from '@/lib/uuid'
+import { calculateGameRounds } from '@/lib/utils'
 
 interface GameSetupProps {
   onGameCreated: (gameId: string) => void
 }
 
 export default function GameSetup({ onGameCreated }: GameSetupProps) {
-  const [players, setPlayers] = useState<Player[]>([])
+  const { players } = usePlayers()
+  const { saveGame } = useGames()
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    fetchPlayers()
-  }, [])
-
-  const fetchPlayers = async () => {
-    try {
-      const response = await fetch('/api/players')
-      const data = await response.json()
-      setPlayers(data)
-    } catch (error) {
-      console.error('Failed to fetch players:', error)
-    }
-  }
 
   const handlePlayerToggle = (playerId: string) => {
     setSelectedPlayers(prev =>
@@ -40,23 +26,29 @@ export default function GameSetup({ onGameCreated }: GameSetupProps) {
 
     setLoading(true)
     try {
-      const response = await fetch('/api/games', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerIds: selectedPlayers }),
-      })
+      const gameId = generateId()
+      const playerCount = selectedPlayers.length
+      const totalRounds = calculateGameRounds(playerCount)
 
-      const game = await response.json()
-      if (response.ok) {
-        // Update game status to SEAT_ARRANGEMENT
-        await fetch(`/api/games/${game.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'SEAT_ARRANGEMENT' }),
-        })
+      // Create game players with initial data
+      const gamePlayers: GamePlayer[] = selectedPlayers.map(playerId => ({
+        playerId,
+        totalScore: 0,
+      }))
 
-        onGameCreated(game.id)
+      const newGame: Game = {
+        id: gameId,
+        createdAt: new Date().toISOString(),
+        status: 'seat_arrangement',
+        playerCount,
+        totalRounds,
+        currentRound: 1,
+        players: gamePlayers,
+        rounds: [],
       }
+
+      await saveGame(newGame)
+      onGameCreated(gameId)
     } catch (error) {
       console.error('Failed to create game:', error)
     } finally {

@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { usePlayers } from '@/hooks/useLocalStorage'
 
 interface PlayerFormProps {
   onPlayerCreated: () => void
@@ -8,6 +9,7 @@ interface PlayerFormProps {
 export default function PlayerForm({ onPlayerCreated }: PlayerFormProps) {
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
+  const { addPlayer } = usePlayers()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -15,16 +17,13 @@ export default function PlayerForm({ onPlayerCreated }: PlayerFormProps) {
 
     setLoading(true)
     try {
-      const response = await fetch('/api/players', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+      await addPlayer({
+        name: name.trim(),
+        createdAt: new Date().toISOString(),
       })
 
-      if (response.ok) {
-        setName('')
-        onPlayerCreated()
-      }
+      setName('')
+      onPlayerCreated()
     } catch (error) {
       console.error('Failed to create player:', error)
     } finally {
