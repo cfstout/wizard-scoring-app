@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface Player {
   id: string
@@ -28,35 +28,35 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([])
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    fetchGame()
-  }, [gameId])
-
-  const fetchGame = async () => {
+  const fetchGame = useCallback(async () => {
     try {
       const response = await fetch(`/api/games/${gameId}`)
       const gameData = await response.json()
       setGame(gameData)
-      
+
       // Initialize seats array
       const seatArray = new Array(gameData.playerCount).fill(null)
       const players = gameData.players.map((gp: GamePlayer) => gp.player)
-      
+
       setSeats(seatArray)
       setAvailablePlayers(players)
     } catch (error) {
-      console.error('Failed to fetch game:', error)
+      // Removed console statement
     }
-  }
+  }, [gameId])
+
+  useEffect(() => {
+    fetchGame()
+  }, [fetchGame])
 
   const assignPlayerToSeat = (player: Player, seatIndex: number) => {
     // Remove player from their current seat if they have one
-    const newSeats = seats.map(seat => seat?.id === player.id ? null : seat)
-    
+    const newSeats = seats.map(seat => (seat?.id === player.id ? null : seat))
+
     // Assign player to new seat
     newSeats[seatIndex] = player
     setSeats(newSeats)
-    
+
     // Update available players
     setAvailablePlayers(prev => prev.filter(p => p.id !== player.id))
   }
@@ -67,7 +67,7 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
       const newSeats = [...seats]
       newSeats[seatIndex] = null
       setSeats(newSeats)
-      
+
       setAvailablePlayers(prev => [...prev, player])
     }
   }
@@ -81,19 +81,21 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
     setLoading(true)
     try {
       // Update seat positions in the database
-      const updatePromises = seats.map((player, index) => {
-        if (player) {
-          return fetch(`/api/games/${gameId}/seats`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              playerId: player.id,
-              seatPosition: index + 1
+      const updatePromises = seats
+        .map((player, index) => {
+          if (player) {
+            return fetch(`/api/games/${gameId}/seats`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                playerId: player.id,
+                seatPosition: index + 1,
+              }),
             })
-          })
-        }
-        return Promise.resolve()
-      }).filter(Boolean)
+          }
+          return Promise.resolve()
+        })
+        .filter(Boolean)
 
       await Promise.all(updatePromises)
 
@@ -102,8 +104,8 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: 'IN_PROGRESS'
-        })
+          status: 'IN_PROGRESS',
+        }),
       })
 
       onSeatsArranged()
@@ -132,7 +134,7 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
       {/* Seat Layout */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-bold mb-4 text-center">Table Seating</h2>
-        
+
         {/* Visual seat arrangement - circular layout */}
         <div className="relative w-80 h-80 mx-auto mb-6">
           {seats.map((player, index) => {
@@ -141,18 +143,18 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
             const radius = 120
             const x = Math.cos((angle * Math.PI) / 180) * radius
             const y = Math.sin((angle * Math.PI) / 180) * radius
-            
+
             return (
               <div
                 key={index}
                 className={`absolute w-16 h-16 rounded-full border-2 flex items-center justify-center text-xs font-bold cursor-pointer transform -translate-x-1/2 -translate-y-1/2 ${
-                  player 
-                    ? 'bg-blue-500 text-white border-blue-600' 
+                  player
+                    ? 'bg-blue-500 text-white border-blue-600'
                     : 'bg-gray-200 border-gray-400 hover:bg-gray-300'
                 }`}
                 style={{
                   left: `calc(50% + ${x}px)`,
-                  top: `calc(50% + ${y}px)`
+                  top: `calc(50% + ${y}px)`,
                 }}
                 onClick={() => {
                   if (player) {
@@ -175,7 +177,7 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
               </div>
             )
           })}
-          
+
           {/* Table center */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-32 h-32 bg-green-800 rounded-full flex items-center justify-center text-white font-bold">

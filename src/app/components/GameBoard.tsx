@@ -1,5 +1,10 @@
-import { useState, useEffect } from 'react'
-import { calculateRemainingTricks, calculateDealerSeat, calculateFirstBidderSeat, calculateScore } from '@/lib/utils'
+import { useState, useEffect, useCallback } from 'react'
+import {
+  calculateRemainingTricks,
+  calculateDealerSeat,
+  calculateFirstBidderSeat,
+  calculateScore,
+} from '@/lib/utils'
 
 interface Player {
   id: string
@@ -57,51 +62,49 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
   const [editBids, setEditBids] = useState<{ [playerId: string]: number }>({})
   const [editTricks, setEditTricks] = useState<{ [playerId: string]: number }>({})
 
-  useEffect(() => {
-    fetchGame()
-  }, [gameId])
-
-  const fetchGame = async () => {
+  const fetchGame = useCallback(async () => {
     try {
       const response = await fetch(`/api/games/${gameId}`)
       const gameData = await response.json()
       setGame(gameData)
-      
+
       if (gameData.status === 'IN_PROGRESS') {
         await startNextRound(gameData)
       }
     } catch (error) {
       console.error('Failed to fetch game:', error)
     }
-  }
+  }, [gameId])
+
+  useEffect(() => {
+    fetchGame()
+  }, [fetchGame])
 
   const startNextRound = async (gameData: Game) => {
     const roundNumber = gameData.currentRound
     const cardsPerPlayer = roundNumber
-    
+
     try {
-      console.log('Creating round:', { gameId: gameData.id, roundNumber, cardsPerPlayer })
-      
       const response = await fetch('/api/rounds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           gameId: gameData.id,
           roundNumber,
-          cardsPerPlayer
+          cardsPerPlayer,
           // Don't set trumpSuit here - it should be set when submitting bids
-        })
+        }),
       })
-      
+
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Round creation failed:', response.status, errorText)
         throw new Error(`Failed to create round: ${response.status}`)
       }
-      
+
       const round = await response.json()
       setCurrentRound(round)
-      
+
       // Reset bids and tricks for new round
       setBids({})
       setTricksTaken({})
@@ -125,41 +128,45 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
     setLoading(true)
     try {
       // Create bids
-      const bidPromises = game.players.map(({ player }) => 
+      const bidPromises = game.players.map(({ player }) =>
         fetch('/api/bids', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             roundId: currentRound.id,
             playerId: player.id,
-            bidAmount: bids[player.id] || 0
-          })
+            bidAmount: bids[player.id] || 0,
+          }),
         })
       )
-      
+
       await Promise.all(bidPromises)
-      
+
       // Update round status to PLAYING using the individual round endpoint
       const updateResponse = await fetch(`/api/rounds/${currentRound.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: 'PLAYING', 
-          trumpSuit: trumpSuit || null 
-        })
+        body: JSON.stringify({
+          status: 'PLAYING',
+          trumpSuit: trumpSuit || null,
+        }),
       })
-      
+
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text()
         console.error('Failed to update round status:', updateResponse.status, errorText)
         throw new Error(`Failed to update round: ${updateResponse.status}`)
       }
-      
-      setCurrentRound(prev => prev ? { 
-        ...prev, 
-        status: 'PLAYING', 
-        trumpSuit: trumpSuit || undefined 
-      } : null)
+
+      setCurrentRound(prev =>
+        prev
+          ? {
+              ...prev,
+              status: 'PLAYING',
+              trumpSuit: trumpSuit || undefined,
+            }
+          : null
+      )
     } catch (error) {
       console.error('Failed to submit bids:', error)
     } finally {
@@ -170,14 +177,14 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
   const validateTricksTaken = (): { valid: boolean; message: string } => {
     const totalTricks = Object.values(tricksTaken).reduce((sum, tricks) => sum + (tricks || 0), 0)
     const expectedTricks = currentRound?.cardsPerPlayer || 0
-    
+
     if (totalTricks !== expectedTricks) {
       return {
         valid: false,
-        message: `Total tricks taken (${totalTricks}) must equal cards per player (${expectedTricks})`
+        message: `Total tricks taken (${totalTricks}) must equal cards per player (${expectedTricks})`,
       }
     }
-    
+
     return { valid: true, message: '' }
   }
 
@@ -201,10 +208,10 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           roundId: currentRound.id,
           bids: game.players.map(({ player }) => ({
             playerId: player.id,
-            bidAmount: bids[player.id] || 0
+            bidAmount: bids[player.id] || 0,
           })),
-          tricksTaken
-        })
+          tricksTaken,
+        }),
       })
 
       if (!response.ok) {
@@ -234,16 +241,16 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
 
   const handleEditRound = (round: Round) => {
     setEditingRound(round.id)
-    
+
     // Initialize edit state with current values
     const bidData: { [playerId: string]: number } = {}
     const trickData: { [playerId: string]: number } = {}
-    
+
     round.bids.forEach(bid => {
       bidData[bid.playerId] = bid.bidAmount
       trickData[bid.playerId] = bid.tricksTaken || 0
     })
-    
+
     setEditBids(bidData)
     setEditTricks(trickData)
   }
@@ -257,7 +264,9 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
     if (!round) return
 
     if (totalTricks !== round.cardsPerPlayer) {
-      alert(`Total tricks taken (${totalTricks}) must equal cards per player (${round.cardsPerPlayer})`)
+      alert(
+        `Total tricks taken (${totalTricks}) must equal cards per player (${round.cardsPerPlayer})`
+      )
       return
     }
 
@@ -270,10 +279,10 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           roundId,
           bids: game.players.map(({ player }) => ({
             playerId: player.id,
-            bidAmount: editBids[player.id] || 0
+            bidAmount: editBids[player.id] || 0,
           })),
-          tricksTaken: editTricks
-        })
+          tricksTaken: editTricks,
+        }),
       })
 
       if (!response.ok) {
@@ -303,25 +312,23 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
     return aOrder - bOrder
   })
 
-  const allBidsEntered = game.players.every(({ player }) => 
-    bids[player.id] !== undefined
-  )
-  
-  const allTricksEntered = game.players.every(({ player }) => 
-    tricksTaken[player.id] !== undefined
-  )
+  const allBidsEntered = game.players.every(({ player }) => bids[player.id] !== undefined)
+
+  const allTricksEntered = game.players.every(({ player }) => tricksTaken[player.id] !== undefined)
 
   const totalBids = Object.values(bids).reduce((sum, bid) => sum + (bid || 0), 0)
   const remainingTricks = calculateRemainingTricks(currentRound.cardsPerPlayer, Object.values(bids))
 
   // Calculate dealer and first bidder
   const dealerSeat = calculateDealerSeat(currentRound.roundNumber, game.playerCount)
-  
+
   const dealer = game.players.find(gp => gp.seatPosition === dealerSeat)
   const firstBidder = game.players.find(gp => gp.seatPosition === firstBidderSeat)
 
   // Get completed rounds for display (most recent first)
-  const completedRounds = game.rounds.filter(r => r.status === 'COMPLETED').sort((a, b) => b.roundNumber - a.roundNumber)
+  const completedRounds = game.rounds
+    .filter(r => r.status === 'COMPLETED')
+    .sort((a, b) => b.roundNumber - a.roundNumber)
 
   // Calculate tricks validation
   const tricksValidation = validateTricksTaken()
@@ -331,8 +338,8 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
       <div className="text-center">
         <h1 className="text-2xl font-bold">Wizard Game</h1>
         <p className="text-gray-600">
-          Round {currentRound.roundNumber} of {game.totalRounds} 
-          ({currentRound.cardsPerPlayer} card{currentRound.cardsPerPlayer !== 1 ? 's' : ''} each)
+          Round {currentRound.roundNumber} of {game.totalRounds}({currentRound.cardsPerPlayer} card
+          {currentRound.cardsPerPlayer !== 1 ? 's' : ''} each)
         </p>
         {currentRound.trumpSuit && (
           <p className="text-lg font-semibold">Trump: {currentRound.trumpSuit}</p>
@@ -365,14 +372,15 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
             {[...game.players]
               .sort((a, b) => b.totalScore - a.totalScore)
               .map((playerGame, index) => (
-                <div key={playerGame.player.id} className="flex justify-between items-center p-2 bg-white rounded border">
+                <div
+                  key={playerGame.player.id}
+                  className="flex justify-between items-center p-2 bg-white rounded border"
+                >
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-sm">#{index + 1}</span>
                     <span className="font-medium text-sm">{playerGame.player.name}</span>
                     <span className="text-xs text-gray-500">(Seat {playerGame.seatPosition})</span>
-                    {index === 0 && (
-                      <span className="text-yellow-500">👑</span>
-                    )}
+                    {index === 0 && <span className="text-yellow-500">👑</span>}
                   </div>
                   <span className="font-bold text-sm">{playerGame.totalScore}</span>
                 </div>
@@ -387,14 +395,12 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
             Players are shown in bidding order: first bidder at top, dealer at bottom
           </div>
-          
+
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">
-              Trump Suit (optional):
-            </label>
+            <label className="block text-sm font-medium mb-2">Trump Suit (optional):</label>
             <select
               value={trumpSuit}
-              onChange={(e) => setTrumpSuit(e.target.value)}
+              onChange={e => setTrumpSuit(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md"
             >
               <option value="">No Trump</option>
@@ -411,12 +417,18 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
               const isFirstBidder = gamePlayer.seatPosition === firstBidderSeat
               const isFirstInOrder = index === 0
               const isLastInOrder = index === sortedPlayers.length - 1
-              
+
               return (
-                <div key={gamePlayer.player.id} className={`flex items-center justify-between p-3 border rounded-lg ${
-                  isDealer ? 'border-orange-300 bg-orange-50' : 
-                  isFirstBidder ? 'border-green-300 bg-green-50' : ''
-                }`}>
+                <div
+                  key={gamePlayer.player.id}
+                  className={`flex items-center justify-between p-3 border rounded-lg ${
+                    isDealer
+                      ? 'border-orange-300 bg-orange-50'
+                      : isFirstBidder
+                        ? 'border-green-300 bg-green-50'
+                        : ''
+                  }`}
+                >
                   <div className="flex items-center space-x-2">
                     <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-bold">
                       {index + 1}
@@ -433,7 +445,9 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                       min="0"
                       max={currentRound.cardsPerPlayer}
                       value={bids[gamePlayer.player.id] ?? ''}
-                      onChange={(e) => handleBidChange(gamePlayer.player.id, parseInt(e.target.value) || 0)}
+                      onChange={e =>
+                        handleBidChange(gamePlayer.player.id, parseInt(e.target.value) || 0)
+                      }
                       className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
                     />
                   </div>
@@ -443,8 +457,12 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           </div>
 
           <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <p>Total Bids: {totalBids} | Cards: {currentRound.cardsPerPlayer}</p>
-            <p className={`font-semibold ${remainingTricks === 0 ? 'text-green-600' : remainingTricks > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+            <p>
+              Total Bids: {totalBids} | Cards: {currentRound.cardsPerPlayer}
+            </p>
+            <p
+              className={`font-semibold ${remainingTricks === 0 ? 'text-green-600' : remainingTricks > 0 ? 'text-blue-600' : 'text-red-600'}`}
+            >
               Remaining Tricks: {remainingTricks}
             </p>
           </div>
@@ -465,17 +483,20 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
             Players are shown in play order: dealer at bottom
           </div>
-          
+
           <div className="grid gap-4">
             {sortedPlayers.map((gamePlayer, index) => {
               const isDealer = gamePlayer.seatPosition === dealerSeat
               const isFirstInOrder = index === 0
               const isLastInOrder = index === sortedPlayers.length - 1
-              
+
               return (
-                <div key={gamePlayer.player.id} className={`flex items-center justify-between p-3 border rounded-lg ${
-                  isDealer ? 'border-orange-300 bg-orange-50' : ''
-                }`}>
+                <div
+                  key={gamePlayer.player.id}
+                  className={`flex items-center justify-between p-3 border rounded-lg ${
+                    isDealer ? 'border-orange-300 bg-orange-50' : ''
+                  }`}
+                >
                   <div className="flex items-center space-x-2">
                     <span className="text-xs bg-gray-200 rounded-full w-6 h-6 flex items-center justify-center font-bold">
                       {index + 1}
@@ -494,7 +515,9 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                       min="0"
                       max={currentRound.cardsPerPlayer}
                       value={tricksTaken[gamePlayer.player.id] ?? ''}
-                      onChange={(e) => handleTricksChange(gamePlayer.player.id, parseInt(e.target.value) || 0)}
+                      onChange={e =>
+                        handleTricksChange(gamePlayer.player.id, parseInt(e.target.value) || 0)
+                      }
                       className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
                     />
                   </div>
@@ -552,7 +575,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                 </tr>
               </thead>
               <tbody>
-                {completedRounds.map((round) => (
+                {completedRounds.map(round => (
                   <tr key={round.id} className="border-b">
                     <td className="p-2 font-medium">
                       <div>Round {round.roundNumber}</div>
@@ -564,7 +587,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                     {sortedPlayers.map(({ player }) => {
                       const bid = round.bids.find(b => b.playerId === player.id)
                       const isEditing = editingRound === round.id
-                      
+
                       return (
                         <td key={player.id} className="text-center p-2">
                           {bid ? (
@@ -577,10 +600,12 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                                       min="0"
                                       max={round.cardsPerPlayer}
                                       value={editBids[player.id] ?? bid.bidAmount}
-                                      onChange={(e) => setEditBids(prev => ({
-                                        ...prev,
-                                        [player.id]: parseInt(e.target.value) || 0
-                                      }))}
+                                      onChange={e =>
+                                        setEditBids(prev => ({
+                                          ...prev,
+                                          [player.id]: parseInt(e.target.value) || 0,
+                                        }))
+                                      }
                                       className="w-12 px-1 py-0.5 border rounded text-xs text-center"
                                       placeholder="Bid"
                                     />
@@ -590,10 +615,12 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                                       min="0"
                                       max={round.cardsPerPlayer}
                                       value={editTricks[player.id] ?? (bid.tricksTaken || 0)}
-                                      onChange={(e) => setEditTricks(prev => ({
-                                        ...prev,
-                                        [player.id]: parseInt(e.target.value) || 0
-                                      }))}
+                                      onChange={e =>
+                                        setEditTricks(prev => ({
+                                          ...prev,
+                                          [player.id]: parseInt(e.target.value) || 0,
+                                        }))
+                                      }
                                       className="w-12 px-1 py-0.5 border rounded text-xs text-center"
                                       placeholder="Taken"
                                     />
@@ -610,8 +637,11 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
                                   <div className="text-xs text-gray-600">
                                     {bid.bidAmount}/{bid.tricksTaken}
                                   </div>
-                                  <div className={`font-bold ${bid.score && bid.score >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {bid.score && bid.score > 0 ? '+' : ''}{bid.score}
+                                  <div
+                                    className={`font-bold ${bid.score && bid.score >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                                  >
+                                    {bid.score && bid.score > 0 ? '+' : ''}
+                                    {bid.score}
                                   </div>
                                 </>
                               )}
@@ -654,7 +684,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
             </table>
           </div>
           <div className="text-xs text-gray-500 mt-2">
-            Format: Bid/Taken, Score | Players ordered by current round's bidding/play order
+            Format: Bid/Taken, Score | Players ordered by current round&apos;s bidding/play order
           </div>
         </div>
       )}

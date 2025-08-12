@@ -18,7 +18,7 @@ export default function PlayerForm({ onPlayerCreated }: PlayerFormProps) {
       const response = await fetch('/api/players', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() })
+        body: JSON.stringify({ name: name.trim() }),
       })
 
       if (response.ok) {
@@ -37,7 +37,7 @@ export default function PlayerForm({ onPlayerCreated }: PlayerFormProps) {
       <input
         type="text"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={e => setName(e.target.value)}
         placeholder="Enter player name"
         className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={loading}

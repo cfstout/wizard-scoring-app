@@ -8,11 +8,11 @@ export async function GET() {
       include: {
         players: {
           include: {
-            player: true
-          }
-        }
+            player: true,
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(games)
   } catch (error) {
@@ -23,29 +23,29 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const { playerIds } = await request.json()
-    
+
     const playerCount = playerIds.length
     const totalRounds = calculateGameRounds(playerCount)
-    
+
     const game = await prisma.game.create({
       data: {
         playerCount,
         totalRounds,
         players: {
           create: playerIds.map((playerId: string) => ({
-            playerId
-          }))
-        }
+            playerId,
+          })),
+        },
       },
       include: {
         players: {
           include: {
-            player: true
-          }
-        }
-      }
+            player: true,
+          },
+        },
+      },
     })
-    
+
     return NextResponse.json(game, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create game' }, { status: 500 })

@@ -1,32 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const game = await prisma.game.findUnique({
       where: { id: params.id },
       include: {
         players: {
           include: {
-            player: true
-          }
+            player: true,
+          },
         },
         rounds: {
           include: {
             bids: {
               include: {
-                player: true
-              }
-            }
+                player: true,
+              },
+            },
           },
           orderBy: {
-            roundNumber: 'asc'
-          }
-        }
-      }
+            roundNumber: 'asc',
+          },
+        },
+      },
     })
 
     if (!game) {
@@ -39,28 +36,25 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { status, currentRound } = await request.json()
-    
+
     const game = await prisma.game.update({
       where: { id: params.id },
       data: {
         status,
         currentRound,
         ...(status === 'IN_PROGRESS' ? { startedAt: new Date() } : {}),
-        ...(status === 'COMPLETED' ? { endedAt: new Date() } : {})
+        ...(status === 'COMPLETED' ? { endedAt: new Date() } : {}),
       },
       include: {
         players: {
           include: {
-            player: true
-          }
-        }
-      }
+            player: true,
+          },
+        },
+      },
     })
 
     return NextResponse.json(game)

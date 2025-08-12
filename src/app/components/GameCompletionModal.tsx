@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface Player {
   id: string
@@ -47,23 +47,27 @@ interface GameCompletionModalProps {
   onViewScores: () => void
 }
 
-export default function GameCompletionModal({ gameId, onNewGame, onViewScores }: GameCompletionModalProps) {
+export default function GameCompletionModal({
+  gameId,
+  onNewGame,
+  onViewScores,
+}: GameCompletionModalProps) {
   const [game, setGame] = useState<Game | null>(null)
   const [showStats, setShowStats] = useState(false)
 
-  useEffect(() => {
-    fetchGameDetails()
-  }, [gameId])
-
-  const fetchGameDetails = async () => {
+  const fetchGameDetails = useCallback(async () => {
     try {
       const response = await fetch(`/api/games/${gameId}`)
       const gameData = await response.json()
       setGame(gameData)
     } catch (error) {
-      console.error('Failed to fetch game details:', error)
+      // Removed console statement
     }
-  }
+  }, [gameId])
+
+  useEffect(() => {
+    fetchGameDetails()
+  }, [fetchGameDetails])
 
   if (!game) {
     return <div className="p-4">Loading game results...</div>
@@ -74,20 +78,23 @@ export default function GameCompletionModal({ gameId, onNewGame, onViewScores }:
   const winner = finalStandings[0]
 
   // Calculate game statistics
-  const gameDuration = game.startedAt && game.endedAt 
-    ? Math.round((new Date(game.endedAt).getTime() - new Date(game.startedAt).getTime()) / (1000 * 60))
-    : null
+  const gameDuration =
+    game.startedAt && game.endedAt
+      ? Math.round(
+          (new Date(game.endedAt).getTime() - new Date(game.startedAt).getTime()) / (1000 * 60)
+        )
+      : null
 
   // Calculate some interesting stats
   const playerStats = finalStandings.map(gamePlayer => {
-    const playerBids = game.rounds.flatMap(round => 
+    const playerBids = game.rounds.flatMap(round =>
       round.bids.filter(bid => bid.playerId === gamePlayer.player.id)
     )
-    
+
     const correctBids = playerBids.filter(bid => bid.bidAmount === bid.tricksTaken).length
     const totalBids = playerBids.length
     const accuracyRate = totalBids > 0 ? Math.round((correctBids / totalBids) * 100) : 0
-    
+
     const highestSingleRound = Math.max(...playerBids.map(bid => bid.score || 0))
     const lowestSingleRound = Math.min(...playerBids.map(bid => bid.score || 0))
 
@@ -97,7 +104,7 @@ export default function GameCompletionModal({ gameId, onNewGame, onViewScores }:
       totalBids,
       accuracyRate,
       highestSingleRound,
-      lowestSingleRound
+      lowestSingleRound,
     }
   })
 
@@ -119,12 +126,12 @@ export default function GameCompletionModal({ gameId, onNewGame, onViewScores }:
           <h2 className="text-xl font-bold mb-4 text-center">Final Standings</h2>
           <div className="space-y-3">
             {finalStandings.map((gamePlayer, index) => (
-              <div 
-                key={gamePlayer.player.id} 
+              <div
+                key={gamePlayer.player.id}
                 className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                  index === 0 
-                    ? 'border-yellow-400 bg-yellow-50' 
-                    : index === 1 
+                  index === 0
+                    ? 'border-yellow-400 bg-yellow-50'
+                    : index === 1
                       ? 'border-gray-400 bg-gray-50'
                       : index === 2
                         ? 'border-orange-400 bg-orange-50'
@@ -132,15 +139,17 @@ export default function GameCompletionModal({ gameId, onNewGame, onViewScores }:
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <div className={`text-2xl font-bold flex items-center justify-center w-10 h-10 rounded-full ${
-                    index === 0 
-                      ? 'bg-yellow-400 text-white' 
-                      : index === 1 
-                        ? 'bg-gray-400 text-white'
-                        : index === 2
-                          ? 'bg-orange-400 text-white'
-                          : 'bg-gray-300 text-gray-600'
-                  }`}>
+                  <div
+                    className={`text-2xl font-bold flex items-center justify-center w-10 h-10 rounded-full ${
+                      index === 0
+                        ? 'bg-yellow-400 text-white'
+                        : index === 1
+                          ? 'bg-gray-400 text-white'
+                          : index === 2
+                            ? 'bg-orange-400 text-white'
+                            : 'bg-gray-300 text-gray-600'
+                    }`}
+                  >
                     {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`}
                   </div>
                   <div>
@@ -212,15 +221,19 @@ export default function GameCompletionModal({ gameId, onNewGame, onViewScores }:
                     </tr>
                   </thead>
                   <tbody>
-                    {playerStats.map((stats) => (
+                    {playerStats.map(stats => (
                       <tr key={stats.player.id} className="border-b">
                         <td className="p-2 font-medium">{stats.player.name}</td>
                         <td className="text-center p-2">
-                          <span className={`inline-block px-2 py-1 rounded text-xs ${
-                            stats.accuracyRate >= 70 ? 'bg-green-100 text-green-800' :
-                            stats.accuracyRate >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
+                          <span
+                            className={`inline-block px-2 py-1 rounded text-xs ${
+                              stats.accuracyRate >= 70
+                                ? 'bg-green-100 text-green-800'
+                                : stats.accuracyRate >= 50
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                            }`}
+                          >
                             {stats.accuracyRate}% ({stats.correctBids}/{stats.totalBids})
                           </span>
                         </td>
