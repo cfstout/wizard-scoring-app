@@ -1,6 +1,7 @@
 import { Preferences } from '@capacitor/preferences'
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite'
 import { Player, Game, AppSettings, PlayerStats } from '@/types/storage'
+import { generateId } from './uuid'
 
 export class WizardStorageService {
   private sqlite: SQLiteConnection
@@ -111,7 +112,7 @@ export class WizardStorageService {
     if (!this.db) throw new Error('Database not initialized')
     
     const player: Player = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       ...playerData
     }
     

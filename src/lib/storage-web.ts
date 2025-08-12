@@ -1,6 +1,12 @@
 // Web-compatible mock implementation for testing storage in browser
 import { Player, Game, AppSettings, PlayerStats } from '@/types/storage'
-import { WizardStorageService } from './storage'
+import { generateId } from './uuid'
+
+// Import WizardStorageService dynamically to avoid build issues
+async function getWizardStorageService() {
+  const { WizardStorageService } = await import('./storage')
+  return WizardStorageService
+}
 
 class WebStorageService {
   private isInitialized = false
@@ -54,7 +60,7 @@ class WebStorageService {
   
   async addPlayer(playerData: Omit<Player, 'id'>): Promise<Player> {
     const player: Player = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       ...playerData
     }
     
@@ -196,9 +202,22 @@ class WebStorageService {
   }
 }
 
-// Detect environment and export appropriate service
-const isWeb = typeof window !== 'undefined' && !window.Capacitor
+// Handle SSR and environment detection properly
+export async function getStorageService() {
+  // During SSR, always use WebStorageService as fallback
+  if (typeof window === 'undefined') {
+    return new WebStorageService()
+  }
+  
+  // In browser, check for Capacitor
+  if (typeof window !== 'undefined' && !window.Capacitor) {
+    return new WebStorageService()
+  }
+  
+  // Only load WizardStorageService when actually needed (mobile)
+  const WizardStorageServiceClass = await getWizardStorageService()
+  return new WizardStorageServiceClass()
+}
 
-export const storageService = isWeb 
-  ? new WebStorageService()
-  : new WizardStorageService()
+// For backwards compatibility - initialize with web service by default
+export const storageService = new WebStorageService()

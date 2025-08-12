@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { usePlayers, useGames, useStorageInit } from '@/hooks/useLocalStorage'
 import { Game } from '@/types/storage'
 import { calculateGameRounds } from '@/lib/utils'
+import { generateId } from '@/lib/uuid'
 
 export default function StorageTest() {
   const { isInitialized, error: initError } = useStorageInit()
@@ -35,7 +36,7 @@ export default function StorageTest() {
     
     try {
       const selectedPlayers = players.slice(0, 4) // Take first 4 players
-      const gameId = crypto.randomUUID()
+      const gameId = generateId()
       
       const testGame: Game = {
         id: gameId,
