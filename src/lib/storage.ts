@@ -16,7 +16,7 @@ export class WizardStorageService {
     
     try {
       // Check if SQLite plugin is available
-      const ret = await CapacitorSQLite.checkConnectionsConsistency({
+      await CapacitorSQLite.checkConnectionsConsistency({
         dbNames: [],
       })
       

@@ -1,5 +1,6 @@
 // Web-compatible mock implementation for testing storage in browser
 import { Player, Game, AppSettings, PlayerStats } from '@/types/storage'
+import { WizardStorageService } from './storage'
 
 class WebStorageService {
   private isInitialized = false
@@ -200,4 +201,4 @@ const isWeb = typeof window !== 'undefined' && !window.Capacitor
 
 export const storageService = isWeb 
   ? new WebStorageService()
-  : new (require('./storage').WizardStorageService)()
+  : new WizardStorageService()
