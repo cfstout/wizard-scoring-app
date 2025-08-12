@@ -6,8 +6,9 @@ import SeatArrangement from './components/SeatArrangement'
 import GameBoard from './components/GameBoard'
 import ScoreBoard from './components/ScoreBoard'
 import GameCompletionModal from './components/GameCompletionModal'
+import StorageTest from './components/StorageTest'
 
-type AppState = 'setup' | 'seats' | 'game' | 'completed' | 'scores'
+type AppState = 'setup' | 'seats' | 'game' | 'completed' | 'scores' | 'storage-test'
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>('setup')
@@ -48,6 +49,12 @@ export default function Home() {
             <div className="text-center">
               <h1 className="text-3xl font-bold text-gray-900">Wizard Card Game Scorer</h1>
               <p className="text-gray-600 mt-2">Track scores for the Wizard card game</p>
+              <button
+                onClick={() => setAppState('storage-test')}
+                className="mt-4 px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 text-sm"
+              >
+                🧪 Storage Test
+              </button>
             </div>
             
             <div className="bg-white rounded-lg shadow p-6">
@@ -96,6 +103,20 @@ export default function Home() {
                 Back to Results
               </button>
             </div>
+          </div>
+        )}
+
+        {appState === 'storage-test' && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <button
+                onClick={() => setAppState('setup')}
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                ← Back to App
+              </button>
+            </div>
+            <StorageTest />
           </div>
         )}
       </div>
