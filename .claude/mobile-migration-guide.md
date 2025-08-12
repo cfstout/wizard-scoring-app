@@ -3,6 +3,7 @@
 This guide documents the complete migration from a PostgreSQL/Prisma web app to an offline-first Android mobile app using Capacitor.
 
 ## Table of Contents
+
 1. [Git Branching Strategy](#git-branching-strategy)
 2. [Current Architecture Analysis](#current-architecture-analysis)
 3. [Simplified Offline Architecture](#simplified-offline-architecture)
@@ -34,6 +35,7 @@ main (current web app - stays functional)
 ### Workflow Process
 
 #### Initial Setup
+
 ```bash
 # Create and switch to mobile base branch
 git checkout -b mobile
@@ -43,6 +45,7 @@ git push -u origin mobile
 ```
 
 #### For Each Phase
+
 ```bash
 # Create feature branch from mobile base
 git checkout mobile
@@ -57,7 +60,7 @@ git add .
 git commit -m "Phase 1: Add storage infrastructure
 
 - Install Capacitor storage dependencies
-- Create storage service layer  
+- Create storage service layer
 - Add React hooks for data access
 - Test basic storage operations"
 
@@ -76,13 +79,15 @@ git push origin --delete mobile/phase1-storage
 #### Phase-Specific Branch Commands
 
 **Phase 1: Storage Infrastructure**
+
 ```bash
 git checkout -b mobile/phase1-storage
 # Implementation work...
 git commit -m "Phase 1: Add storage infrastructure"
 ```
 
-**Phase 2: API Replacement**  
+**Phase 2: API Replacement**
+
 ```bash
 git checkout mobile
 git checkout -b mobile/phase2-api-replacement
@@ -91,6 +96,7 @@ git commit -m "Phase 2: Replace API calls with local storage"
 ```
 
 **Phase 3: Database Removal**
+
 ```bash
 git checkout mobile
 git checkout -b mobile/phase3-db-removal
@@ -99,14 +105,16 @@ git commit -m "Phase 3: Remove Prisma and PostgreSQL dependencies"
 ```
 
 **Phase 4: Static Export**
+
 ```bash
 git checkout mobile
-git checkout -b mobile/phase4-static-export  
+git checkout -b mobile/phase4-static-export
 # Implementation work...
 git commit -m "Phase 4: Configure Next.js for static export"
 ```
 
 **Phase 5: Capacitor Integration**
+
 ```bash
 git checkout mobile
 git checkout -b mobile/phase5-capacitor
@@ -115,6 +123,7 @@ git commit -m "Phase 5: Add Capacitor and Android platform"
 ```
 
 **Phase 6: Mobile UI**
+
 ```bash
 git checkout mobile
 git checkout -b mobile/phase6-mobile-ui
@@ -123,6 +132,7 @@ git commit -m "Phase 6: Mobile-first UI optimizations"
 ```
 
 **Phase 7: Testing**
+
 ```bash
 git checkout mobile
 git checkout -b mobile/phase7-testing
@@ -131,6 +141,7 @@ git commit -m "Phase 7: Testing and performance optimization"
 ```
 
 **Phase 8: Deployment**
+
 ```bash
 git checkout mobile
 git checkout -b mobile/phase8-deployment
@@ -141,11 +152,13 @@ git commit -m "Phase 8: Build and store preparation"
 ### Testing Strategy
 
 **During Development:**
+
 - Each phase branch can be tested independently
 - Mobile branch contains cumulative progress
 - Main branch remains untouched and functional
 
 **Integration Testing:**
+
 ```bash
 # Test mobile branch end-to-end
 git checkout mobile
@@ -156,6 +169,7 @@ npx cap open android
 ```
 
 **Final Deployment:**
+
 ```bash
 # When mobile version is complete and tested
 git checkout main
@@ -170,7 +184,7 @@ git push origin v2.0.0-mobile
 ### Benefits of This Approach
 
 1. **Safety**: Main branch stays functional throughout migration
-2. **Rollback**: Can easily revert any phase if issues arise  
+2. **Rollback**: Can easily revert any phase if issues arise
 3. **Parallel Work**: Could work on multiple phases simultaneously if needed
 4. **Testing**: Each phase can be individually tested and validated
 5. **Documentation**: Clear commit history shows progression
@@ -179,21 +193,23 @@ git push origin v2.0.0-mobile
 ### Branch Management Tips
 
 **Keep mobile branch up to date:**
+
 ```bash
 # Regularly sync mobile with any critical fixes from main
 git checkout main
 git pull origin main
-git checkout mobile  
+git checkout mobile
 git merge main  # Only if critical fixes needed
 git push origin mobile
 ```
 
 **Emergency fixes to main:**
+
 ```bash
 # If critical bug found in production web app
 git checkout main
 # Fix bug...
-git commit -m "Fix critical bug in web app"  
+git commit -m "Fix critical bug in web app"
 git push origin main
 
 # Later, merge fix into mobile if relevant
@@ -206,6 +222,7 @@ This strategy ensures the current web app remains stable and usable while we sys
 ## Current Architecture Analysis
 
 ### Current Database Schema
+
 The app currently uses PostgreSQL with Prisma ORM and the following models:
 
 - **Player**: Stores player profiles (id, name, createdAt)
@@ -215,21 +232,25 @@ The app currently uses PostgreSQL with Prisma ORM and the following models:
 - **Bid**: Player bids and results per round (id, bidAmount, tricksTaken, score)
 
 ### API Endpoints Currently Used
+
 - `GET/POST /api/players` - Player management
 - `GET/POST /api/games` - Game creation and listing
-- `GET/PATCH /api/games/[id]` - Individual game management  
+- `GET/PATCH /api/games/[id]` - Individual game management
 - `POST/PATCH /api/rounds` - Round management
 - `POST /api/bids` - Bid management
 - `GET /api/players/stats` - Player statistics
 
 ### Current Data Flow
+
 1. React components fetch data via API calls to Next.js API routes
 2. API routes use Prisma client to interact with PostgreSQL
 3. Complex relational queries with joins and foreign keys
 4. Real-time updates require refetching from server
 
 ### Complexity Analysis
+
 **Overcomplicated features for offline mobile use:**
+
 - Complex relational database with foreign keys and cascading deletes
 - Server-side API routes requiring network connectivity
 - Prisma ORM overhead for simple data operations
@@ -240,6 +261,7 @@ The app currently uses PostgreSQL with Prisma ORM and the following models:
 ## Simplified Offline Architecture
 
 ### Core Data Models (Simplified)
+
 ```typescript
 // Simplified Player model
 interface Player {
@@ -259,11 +281,11 @@ interface Game {
   playerCount: number
   totalRounds: number
   currentRound: number
-  
+
   // Embedded players (no separate table needed)
   players: GamePlayer[]
-  
-  // Embedded rounds (no separate table needed)  
+
+  // Embedded rounds (no separate table needed)
   rounds: Round[]
 }
 
@@ -280,7 +302,7 @@ interface Round {
   cardsPerPlayer: number
   trumpSuit?: string
   status: 'bidding' | 'playing' | 'completed'
-  
+
   // Embedded bids (no separate table needed)
   bids: Bid[]
 }
@@ -302,6 +324,7 @@ interface AppSettings {
 ```
 
 ### Benefits of Simplified Architecture
+
 - **Single JSON documents**: No complex joins or relationships
 - **Denormalized data**: Player names stored directly in games/bids for offline performance
 - **Embedded arrays**: Rounds and bids stored within game objects
@@ -316,17 +339,20 @@ interface AppSettings {
 Based on research and app requirements:
 
 **Capacitor Preferences** (Recommended for settings)
+
 - Use for: App settings, user preferences
 - Storage: Small key-value pairs (< 1MB)
 - Platform: Uses UserDefaults (iOS) / SharedPreferences (Android)
 
 **Capacitor SQLite Plugin** (Recommended for game data)
+
 - Use for: Players, Games, Game History
 - Storage: Structured data with basic queries
 - Platform: SQLite database on device
 - Features: Encryption support, larger storage capacity
 
 **Why NOT IndexedDB for mobile:**
+
 - Browser storage limitations in mobile WebView
 - Data can be cleared by OS when storage is low
 - SQLite is more reliable for persistent mobile data
@@ -339,25 +365,26 @@ interface StorageService {
   // Settings (Capacitor Preferences)
   getSettings(): Promise<AppSettings>
   updateSettings(settings: Partial<AppSettings>): Promise<void>
-  
+
   // Players (SQLite)
   getPlayers(): Promise<Player[]>
   addPlayer(player: Omit<Player, 'id'>): Promise<Player>
   updatePlayer(id: string, updates: Partial<Player>): Promise<Player>
   deletePlayer(id: string): Promise<void>
-  
-  // Games (SQLite)  
+
+  // Games (SQLite)
   getGames(): Promise<Game[]>
   getGame(id: string): Promise<Game | null>
   saveGame(game: Game): Promise<Game>
   deleteGame(id: string): Promise<void>
-  
+
   // Stats/Analytics
   getPlayerStats(): Promise<PlayerStats[]>
 }
 ```
 
 ### Data Size Estimates
+
 - **Player**: ~50 bytes each (id + name + date)
 - **Game**: ~2-5KB each (including all rounds/bids for 4-player, 15-round game)
 - **Total for heavy users**: < 10MB (100 players + 500 games)
@@ -369,12 +396,14 @@ interface StorageService {
 ### Phase 1: Setup Local Storage Infrastructure
 
 #### 1.1 Install Capacitor Storage Dependencies
+
 ```bash
 npm install @capacitor/preferences @capacitor-community/sqlite
 npx cap sync
 ```
 
 #### 1.2 Create Storage Service Layer
+
 Create `src/lib/storage.ts`:
 
 ```typescript
@@ -384,24 +413,24 @@ import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacito
 export class WizardStorageService {
   private sqlite: SQLiteConnection
   private db: SQLiteDBConnection | null = null
-  
+
   constructor() {
     this.sqlite = new SQLiteConnection(CapacitorSQLite)
   }
-  
+
   async initialize() {
     // Initialize SQLite database
     await this.sqlite.createConnection({
       database: 'wizard-scores',
       version: 1,
       encrypted: false,
-      mode: 'no-encryption'
+      mode: 'no-encryption',
     })
-    
+
     this.db = await this.sqlite.retrieveConnection('wizard-scores')
     await this.createTables()
   }
-  
+
   private async createTables() {
     const queries = [
       `CREATE TABLE IF NOT EXISTS players (
@@ -414,53 +443,56 @@ export class WizardStorageService {
         data TEXT NOT NULL,
         created_at TEXT NOT NULL,
         status TEXT NOT NULL
-      )`
+      )`,
     ]
-    
+
     for (const query of queries) {
       await this.db?.execute(query)
     }
   }
-  
+
   // Preferences methods
   async getSettings(): Promise<AppSettings> {
     const { value } = await Preferences.get({ key: 'app-settings' })
     return value ? JSON.parse(value) : { version: '1.0.0' }
   }
-  
+
   async updateSettings(settings: Partial<AppSettings>) {
     const current = await this.getSettings()
     const updated = { ...current, ...settings }
     await Preferences.set({
       key: 'app-settings',
-      value: JSON.stringify(updated)
+      value: JSON.stringify(updated),
     })
   }
-  
+
   // Player methods
   async getPlayers(): Promise<Player[]> {
     const result = await this.db?.query('SELECT * FROM players ORDER BY name ASC')
-    return result?.values?.map(row => ({
-      id: row.id,
-      name: row.name,
-      createdAt: row.created_at
-    })) || []
+    return (
+      result?.values?.map(row => ({
+        id: row.id,
+        name: row.name,
+        createdAt: row.created_at,
+      })) || []
+    )
   }
-  
+
   async addPlayer(playerData: Omit<Player, 'id'>): Promise<Player> {
     const player: Player = {
       id: crypto.randomUUID(),
-      ...playerData
+      ...playerData,
     }
-    
-    await this.db?.execute(
-      'INSERT INTO players (id, name, created_at) VALUES (?, ?, ?)',
-      [player.id, player.name, player.createdAt]
-    )
-    
+
+    await this.db?.execute('INSERT INTO players (id, name, created_at) VALUES (?, ?, ?)', [
+      player.id,
+      player.name,
+      player.createdAt,
+    ])
+
     return player
   }
-  
+
   // Game methods (store as JSON for simplicity)
   async saveGame(game: Game): Promise<Game> {
     await this.db?.execute(
@@ -469,12 +501,12 @@ export class WizardStorageService {
     )
     return game
   }
-  
+
   async getGames(): Promise<Game[]> {
     const result = await this.db?.query('SELECT data FROM games ORDER BY created_at DESC')
     return result?.values?.map(row => JSON.parse(row.data)) || []
   }
-  
+
   async getGame(id: string): Promise<Game | null> {
     const result = await this.db?.query('SELECT data FROM games WHERE id = ?', [id])
     return result?.values?.[0] ? JSON.parse(result.values[0].data) : null
@@ -486,6 +518,7 @@ export const storageService = new WizardStorageService()
 ```
 
 #### 1.3 Create React Hooks for Data Access
+
 Create `src/hooks/useLocalStorage.ts`:
 
 ```typescript
@@ -495,7 +528,7 @@ import { storageService } from '@/lib/storage'
 export function usePlayers() {
   const [players, setPlayers] = useState<Player[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   const fetchPlayers = async () => {
     setLoading(true)
     try {
@@ -507,7 +540,7 @@ export function usePlayers() {
       setLoading(false)
     }
   }
-  
+
   const addPlayer = async (playerData: Omit<Player, 'id'>) => {
     try {
       const newPlayer = await storageService.addPlayer(playerData)
@@ -518,23 +551,23 @@ export function usePlayers() {
       throw error
     }
   }
-  
+
   useEffect(() => {
     fetchPlayers()
   }, [])
-  
+
   return {
     players,
     loading,
     addPlayer,
-    refetch: fetchPlayers
+    refetch: fetchPlayers,
   }
 }
 
 export function useGames() {
   const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   const fetchGames = async () => {
     setLoading(true)
     try {
@@ -546,7 +579,7 @@ export function useGames() {
       setLoading(false)
     }
   }
-  
+
   const saveGame = async (game: Game) => {
     try {
       const savedGame = await storageService.saveGame(game)
@@ -565,16 +598,16 @@ export function useGames() {
       throw error
     }
   }
-  
+
   useEffect(() => {
     fetchGames()
   }, [])
-  
+
   return {
     games,
     loading,
     saveGame,
-    refetch: fetchGames
+    refetch: fetchGames,
   }
 }
 ```
@@ -582,6 +615,7 @@ export function useGames() {
 ### Phase 2: Replace API Calls with Local Storage
 
 #### 2.1 Update PlayerForm Component
+
 Replace API calls with local storage:
 
 ```typescript
@@ -589,18 +623,19 @@ Replace API calls with local storage:
 const response = await fetch('/api/players', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ name: name.trim() })
+  body: JSON.stringify({ name: name.trim() }),
 })
 
 // After: Local storage
 const { addPlayer } = usePlayers()
 await addPlayer({
   name: name.trim(),
-  createdAt: new Date().toISOString()
+  createdAt: new Date().toISOString(),
 })
 ```
 
 #### 2.2 Update GameSetup Component
+
 ```typescript
 // Before: Fetch from API
 const fetchPlayers = async () => {
@@ -614,6 +649,7 @@ const { players, loading } = usePlayers()
 ```
 
 #### 2.3 Update GameBoard Component
+
 Replace complex API calls with simple local storage operations:
 
 ```typescript
@@ -632,6 +668,7 @@ const currentGame = games.find(g => g.id === gameId)
 ### Phase 3: Remove Database Dependencies
 
 #### 3.1 Remove Prisma and PostgreSQL Dependencies
+
 ```bash
 npm uninstall prisma @prisma/client
 rm -rf prisma/
@@ -639,17 +676,21 @@ rm -f docker-compose.yml
 ```
 
 #### 3.2 Remove API Routes
+
 ```bash
 rm -rf src/app/api/
 ```
 
 #### 3.3 Remove Database Configuration
+
 ```bash
 rm -f src/lib/db.ts
 ```
 
 #### 3.4 Update Package.json Scripts
+
 Remove database-related scripts:
+
 ```json
 {
   "scripts": {
@@ -665,21 +706,23 @@ Remove database-related scripts:
 ### Phase 4: Configure for Static Export
 
 #### 4.1 Update next.config.js
+
 ```javascript
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
   images: {
-    unoptimized: true
+    unoptimized: true,
   },
   trailingSlash: true,
-  distDir: 'out'
+  distDir: 'out',
 }
 
 module.exports = nextConfig
 ```
 
 #### 4.2 Update Package.json for Static Build
+
 ```json
 {
   "scripts": {
@@ -694,12 +737,14 @@ module.exports = nextConfig
 ### Phase 5: Add Capacitor to Project
 
 #### 5.1 Install Capacitor
+
 ```bash
 npm install @capacitor/core @capacitor/cli @capacitor/android
 npx cap init wizard-scorer com.yourname.wizardscorer
 ```
 
 #### 5.2 Add Android Platform
+
 ```bash
 npm run export  # Build static files first
 npx cap add android
@@ -707,6 +752,7 @@ npx cap sync android
 ```
 
 #### 5.3 Configure Capacitor Config
+
 Create `capacitor.config.ts`:
 
 ```typescript
@@ -721,15 +767,16 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 2000,
       backgroundColor: '#3b82f6',
-      showSpinner: false
-    }
-  }
+      showSpinner: false,
+    },
+  },
 }
 
 export default config
 ```
 
 #### 5.4 Initialize Storage on App Start
+
 Update `src/app/layout.tsx`:
 
 ```typescript
@@ -751,7 +798,7 @@ export default function RootLayout({
         console.error('Failed to initialize storage:', error)
       }
     }
-    
+
     initStorage()
   }, [])
 
@@ -768,6 +815,7 @@ export default function RootLayout({
 ### Phase 6: Mobile-First UI Improvements
 
 #### 6.1 Add PWA Manifest
+
 Create `public/manifest.json`:
 
 ```json
@@ -786,7 +834,7 @@ Create `public/manifest.json`:
       "type": "image/png"
     },
     {
-      "src": "icons/icon-512.png", 
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
@@ -795,6 +843,7 @@ Create `public/manifest.json`:
 ```
 
 #### 6.2 Add Mobile-Optimized Styles
+
 Update components with mobile-first responsive design:
 
 ```tsx
@@ -803,7 +852,7 @@ Update components with mobile-first responsive design:
   Start Game
 </button>
 
-// Mobile-friendly form inputs  
+// Mobile-friendly form inputs
 <input className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
 
 // Touch-friendly spacing
@@ -811,7 +860,9 @@ Update components with mobile-first responsive design:
 ```
 
 #### 6.3 Add Splash Screen Assets
+
 Create app icons and splash screens in required sizes:
+
 - `public/icons/icon-192.png` (192x192)
 - `public/icons/icon-512.png` (512x512)
 - Various splash screen sizes for Android
@@ -819,11 +870,13 @@ Create app icons and splash screens in required sizes:
 ### Phase 7: Testing & Optimization
 
 #### 7.1 Test Offline Functionality
+
 - Verify all features work without network
 - Test data persistence across app restarts
 - Validate storage limits and performance
 
 #### 7.2 Performance Optimization
+
 - Minimize bundle size
 - Optimize images for mobile
 - Test on various Android devices
@@ -833,6 +886,7 @@ Create app icons and splash screens in required sizes:
 ### Phase 8: Build and Test Mobile App
 
 #### 8.1 Build for Production
+
 ```bash
 npm run export
 npx cap copy android
@@ -840,11 +894,13 @@ npx cap sync android
 ```
 
 #### 8.2 Open in Android Studio
+
 ```bash
 npx cap open android
 ```
 
 #### 8.3 Test on Device/Emulator
+
 - Install on physical Android device
 - Test all game flows
 - Verify data persistence
@@ -853,10 +909,12 @@ npx cap open android
 ### Phase 9: Prepare for Google Play Store
 
 #### 9.1 Generate Signed APK
+
 - Configure signing keys in Android Studio
 - Build release APK/AAB
 
 #### 9.2 Create Store Assets
+
 - App screenshots (phone/tablet)
 - Feature graphic (1024x500)
 - App icon (512x512)
@@ -864,6 +922,7 @@ npx cap open android
 - App description
 
 #### 9.3 Set Up Google Play Developer Account
+
 - Register account ($25 fee)
 - Complete developer profile
 - Upload and publish app
@@ -871,12 +930,14 @@ npx cap open android
 ## Migration Checklist
 
 ### Phase 1: Storage Infrastructure
+
 - [ ] Install Capacitor storage dependencies
 - [ ] Create storage service layer
 - [ ] Create React hooks for data access
 - [ ] Test basic storage operations
 
-### Phase 2: Replace API Calls  
+### Phase 2: Replace API Calls
+
 - [ ] Update PlayerForm component
 - [ ] Update GameSetup component
 - [ ] Update GameBoard component
@@ -884,6 +945,7 @@ npx cap open android
 - [ ] Test all functionality with local storage
 
 ### Phase 3: Remove Database Dependencies
+
 - [ ] Remove Prisma/PostgreSQL dependencies
 - [ ] Delete API routes
 - [ ] Remove database configuration
@@ -891,11 +953,13 @@ npx cap open android
 - [ ] Test app still builds and runs
 
 ### Phase 4: Static Export Configuration
+
 - [ ] Update next.config.js for static export
 - [ ] Test static build works
 - [ ] Verify all routes work in static mode
 
 ### Phase 5: Capacitor Integration
+
 - [ ] Install Capacitor dependencies
 - [ ] Add Android platform
 - [ ] Configure Capacitor settings
@@ -903,24 +967,28 @@ npx cap open android
 - [ ] Test in Android Studio
 
 ### Phase 6: Mobile Optimizations
+
 - [ ] Add PWA manifest
 - [ ] Create mobile-optimized styles
 - [ ] Add splash screen assets
 - [ ] Test mobile UI/UX
 
 ### Phase 7: Testing & Optimization
+
 - [ ] Test offline functionality
 - [ ] Performance testing
 - [ ] Cross-device testing
 - [ ] Data persistence testing
 
 ### Phase 8: Mobile App Build
+
 - [ ] Build production version
 - [ ] Test on physical device
 - [ ] Verify all features work
 - [ ] Performance validation
 
 ### Phase 9: Store Preparation
+
 - [ ] Generate signed APK
 - [ ] Create store assets
 - [ ] Set up Google Play developer account
@@ -929,7 +997,7 @@ npx cap open android
 ## Estimated Timeline
 
 - **Phase 1-3**: 2-3 days (Storage infrastructure + API removal)
-- **Phase 4-5**: 1 day (Static export + Capacitor setup)  
+- **Phase 4-5**: 1 day (Static export + Capacitor setup)
 - **Phase 6-7**: 2-3 days (Mobile optimization + testing)
 - **Phase 8-9**: 1-2 days (Build + store preparation)
 
@@ -938,6 +1006,7 @@ npx cap open android
 ## Future Enhancements
 
 After successful migration, consider:
+
 - **Cloud backup**: Optional sync to cloud storage
 - **Statistics**: Enhanced player statistics and game analytics
 - **Themes**: Dark mode and custom color schemes

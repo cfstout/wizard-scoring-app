@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface Player {
   id: string
@@ -33,19 +33,19 @@ interface ScoreBoardProps {
 export default function ScoreBoard({ gameId }: ScoreBoardProps) {
   const [game, setGame] = useState<Game | null>(null)
 
-  useEffect(() => {
-    fetchGameDetails()
-  }, [gameId])
-
-  const fetchGameDetails = async () => {
+  const fetchGameDetails = useCallback(async () => {
     try {
       const response = await fetch(`/api/games/${gameId}`)
       const gameData = await response.json()
       setGame(gameData)
     } catch (error) {
-      console.error('Failed to fetch game details:', error)
+      // Removed console statement
     }
-  }
+  }, [gameId])
+
+  useEffect(() => {
+    fetchGameDetails()
+  }, [fetchGameDetails])
 
   if (!game) {
     return <div className="p-4">Loading scores...</div>
@@ -56,13 +56,16 @@ export default function ScoreBoard({ gameId }: ScoreBoardProps) {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-center">Score Board</h2>
-      
+
       {/* Current Standings */}
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="text-lg font-semibold mb-3">Current Standings</h3>
         <div className="space-y-2">
           {sortedPlayers.map((playerGame, index) => (
-            <div key={playerGame.player.id} className="flex justify-between items-center p-2 border-b">
+            <div
+              key={playerGame.player.id}
+              className="flex justify-between items-center p-2 border-b"
+            >
               <div className="flex items-center space-x-2">
                 <span className="font-bold text-lg">#{index + 1}</span>
                 <span className="font-medium">{playerGame.player.name}</span>
@@ -93,7 +96,7 @@ export default function ScoreBoard({ gameId }: ScoreBoardProps) {
                 </tr>
               </thead>
               <tbody>
-                {game.rounds.map((round) => (
+                {game.rounds.map(round => (
                   <tr key={round.id} className="border-b">
                     <td className="p-2 font-medium">{round.roundNumber}</td>
                     {game.players.map(({ player }) => {
@@ -105,8 +108,11 @@ export default function ScoreBoard({ gameId }: ScoreBoardProps) {
                               <div className="text-xs text-gray-600">
                                 {bid.bidAmount}/{bid.tricksTaken}
                               </div>
-                              <div className={`font-bold ${bid.score >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {bid.score > 0 ? '+' : ''}{bid.score}
+                              <div
+                                className={`font-bold ${bid.score >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                              >
+                                {bid.score > 0 ? '+' : ''}
+                                {bid.score}
                               </div>
                             </div>
                           ) : (
@@ -120,9 +126,7 @@ export default function ScoreBoard({ gameId }: ScoreBoardProps) {
               </tbody>
             </table>
           </div>
-          <div className="text-xs text-gray-500 mt-2">
-            Format: Bid/Taken, Score
-          </div>
+          <div className="text-xs text-gray-500 mt-2">Format: Bid/Taken, Score</div>
         </div>
       )}
     </div>

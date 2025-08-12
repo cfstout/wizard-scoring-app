@@ -49,12 +49,12 @@ export default function Home() {
               <h1 className="text-3xl font-bold text-gray-900">Wizard Card Game Scorer</h1>
               <p className="text-gray-600 mt-2">Track scores for the Wizard card game</p>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-bold mb-4">Add New Player</h2>
               <PlayerForm onPlayerCreated={handlePlayerCreated} />
             </div>
-            
+
             <div className="bg-white rounded-lg shadow p-6" key={refreshPlayers}>
               <GameSetup onGameCreated={handleGameCreated} />
             </div>
@@ -72,8 +72,8 @@ export default function Home() {
         )}
 
         {appState === 'completed' && currentGameId && (
-          <GameCompletionModal 
-            gameId={currentGameId} 
+          <GameCompletionModal
+            gameId={currentGameId}
             onNewGame={handleNewGame}
             onViewScores={handleViewScores}
           />

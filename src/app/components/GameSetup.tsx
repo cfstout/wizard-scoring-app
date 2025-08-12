@@ -31,9 +31,7 @@ export default function GameSetup({ onGameCreated }: GameSetupProps) {
 
   const handlePlayerToggle = (playerId: string) => {
     setSelectedPlayers(prev =>
-      prev.includes(playerId)
-        ? prev.filter(id => id !== playerId)
-        : [...prev, playerId]
+      prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
     )
   }
 
@@ -45,7 +43,7 @@ export default function GameSetup({ onGameCreated }: GameSetupProps) {
       const response = await fetch('/api/games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerIds: selectedPlayers })
+        body: JSON.stringify({ playerIds: selectedPlayers }),
       })
 
       const game = await response.json()
@@ -54,9 +52,9 @@ export default function GameSetup({ onGameCreated }: GameSetupProps) {
         await fetch(`/api/games/${game.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'SEAT_ARRANGEMENT' })
+          body: JSON.stringify({ status: 'SEAT_ARRANGEMENT' }),
         })
-        
+
         onGameCreated(game.id)
       }
     } catch (error) {
@@ -69,7 +67,7 @@ export default function GameSetup({ onGameCreated }: GameSetupProps) {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Select Players (3-6 required)</h2>
-      
+
       <div className="grid grid-cols-2 gap-2">
         {players.map(player => (
           <label key={player.id} className="flex items-center space-x-2">
@@ -88,16 +86,23 @@ export default function GameSetup({ onGameCreated }: GameSetupProps) {
         Selected: {selectedPlayers.length}/6 players
         {selectedPlayers.length >= 3 && (
           <span className="ml-2 text-green-600">
-            ({selectedPlayers.length === 3 ? '20' : 
-              selectedPlayers.length === 4 ? '15' : 
-              selectedPlayers.length === 5 ? '12' : '10'} rounds)
+            (
+            {selectedPlayers.length === 3
+              ? '20'
+              : selectedPlayers.length === 4
+                ? '15'
+                : selectedPlayers.length === 5
+                  ? '12'
+                  : '10'}{' '}
+            rounds)
           </span>
         )}
       </div>
 
       {selectedPlayers.length >= 3 && (
         <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
-          <strong>Next:</strong> You'll arrange the seating order to determine dealer rotation and bidding order.
+          <strong>Next:</strong> You&apos;ll arrange the seating order to determine dealer rotation
+          and bidding order.
         </div>
       )}
 
