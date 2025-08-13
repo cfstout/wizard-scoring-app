@@ -9,45 +9,10 @@ import { useGames, usePlayers } from '@/hooks/useLocalStorage'
 import { Game, Round, Bid } from '@/types/storage'
 import { generateId } from '@/lib/uuid'
 
-interface Player {
-  id: string
-  name: string
-  totalScore: number
-}
 
-interface GamePlayer {
-  player: Player
-  totalScore: number
-  seatPosition: number
-}
 
-interface Bid {
-  id: string
-  playerId: string
-  player: Player
-  bidAmount: number
-  tricksTaken: number | null
-  score: number | null
-}
 
-interface Round {
-  id: string
-  roundNumber: number
-  cardsPerPlayer: number
-  trumpSuit?: string
-  status: string
-  bids: Bid[]
-}
 
-interface Game {
-  id: string
-  currentRound: number
-  totalRounds: number
-  playerCount: number
-  status: string
-  players: GamePlayer[]
-  rounds: Round[]
-}
 
 interface GameBoardProps {
   gameId: string
