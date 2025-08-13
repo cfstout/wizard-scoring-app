@@ -1,21 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-
-interface Player {
-  id: string
-  name: string
-}
-
-interface GamePlayer {
-  player: Player
-  seatPosition?: number
-}
-
-interface Game {
-  id: string
-  players: GamePlayer[]
-  playerCount: number
-}
+import { useGames, usePlayers } from '@/hooks/useLocalStorage'
+import { Game, Player } from '@/types/storage'
 
 interface SeatArrangementProps {
   gameId: string
@@ -23,6 +9,8 @@ interface SeatArrangementProps {
 }
 
 export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrangementProps) {
+  const { getGame, saveGame } = useGames()
+  const { players: allPlayers } = usePlayers()
   const [game, setGame] = useState<Game | null>(null)
   const [seats, setSeats] = useState<(Player | null)[]>([])
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([])
@@ -30,20 +18,25 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
 
   const fetchGame = useCallback(async () => {
     try {
-      const response = await fetch(`/api/games/${gameId}`)
-      const gameData = await response.json()
-      setGame(gameData)
+      const gameData = await getGame(gameId)
+      if (gameData) {
+        setGame(gameData)
 
-      // Initialize seats array
-      const seatArray = new Array(gameData.playerCount).fill(null)
-      const players = gameData.players.map((gp: GamePlayer) => gp.player)
+        // Initialize seats array
+        const seatArray = new Array(gameData.playerCount).fill(null)
 
-      setSeats(seatArray)
-      setAvailablePlayers(players)
+        // Get actual player objects from the players list
+        const gamePlayers = gameData.players
+          .map(gp => allPlayers.find(p => p.id === gp.playerId))
+          .filter((p): p is Player => p !== undefined)
+
+        setSeats(seatArray)
+        setAvailablePlayers(gamePlayers)
+      }
     } catch (error) {
-      // Removed console statement
+      console.error('Failed to fetch game:', error)
     }
-  }, [gameId])
+  }, [gameId, getGame, allPlayers])
 
   useEffect(() => {
     fetchGame()
@@ -80,33 +73,22 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
 
     setLoading(true)
     try {
-      // Update seat positions in the database
-      const updatePromises = seats
-        .map((player, index) => {
-          if (player) {
-            return fetch(`/api/games/${gameId}/seats`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                playerId: player.id,
-                seatPosition: index + 1,
-              }),
-            })
+      if (!game) return
+
+      // Update game with seat positions and change status
+      const updatedGame: Game = {
+        ...game,
+        status: 'in_progress',
+        players: game.players.map(gp => {
+          const seatIndex = seats.findIndex(seat => seat?.id === gp.playerId)
+          return {
+            ...gp,
+            seatPosition: seatIndex >= 0 ? seatIndex + 1 : undefined,
           }
-          return Promise.resolve()
-        })
-        .filter(Boolean)
-
-      await Promise.all(updatePromises)
-
-      // Update game status to IN_PROGRESS
-      await fetch(`/api/games/${gameId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'IN_PROGRESS',
         }),
-      })
+      }
+
+      await saveGame(updatedGame)
 
       onSeatsArranged()
     } catch (error) {

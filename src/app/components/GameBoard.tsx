@@ -5,45 +5,103 @@ import {
   calculateFirstBidderSeat,
   calculateScore,
 } from '@/lib/utils'
+import { useGames, usePlayers } from '@/hooks/useLocalStorage'
+import {
+  Game as StorageGame,
+  Round as StorageRound,
+  Bid as StorageBid,
+  Player,
+} from '@/types/storage'
+import { generateId } from '@/lib/uuid'
 
-interface Player {
+// UI types for GameBoard component
+interface UIPlayer {
   id: string
   name: string
   totalScore: number
 }
 
-interface GamePlayer {
-  player: Player
+interface UIGamePlayer {
+  player: UIPlayer
   totalScore: number
   seatPosition: number
 }
 
-interface Bid {
+interface UIBid {
   id: string
   playerId: string
-  player: Player
+  player: UIPlayer
   bidAmount: number
   tricksTaken: number | null
   score: number | null
 }
 
-interface Round {
+interface UIRound {
   id: string
   roundNumber: number
   cardsPerPlayer: number
-  trumpSuit?: string
+  trumpSuit: string
   status: string
-  bids: Bid[]
+  bids: UIBid[]
 }
 
-interface Game {
+interface UIGame {
   id: string
+  players: UIGamePlayer[]
   currentRound: number
   totalRounds: number
   playerCount: number
   status: string
-  players: GamePlayer[]
-  rounds: Round[]
+  rounds: UIRound[]
+}
+
+// Helper functions to convert between storage and UI formats
+function convertStorageGameToUI(storageGame: StorageGame, allPlayers: Player[]): UIGame {
+  const players: UIGamePlayer[] = storageGame.players.map(gp => {
+    const player = allPlayers.find(p => p.id === gp.playerId)
+    return {
+      player: {
+        id: gp.playerId,
+        name: player?.name || 'Unknown',
+        totalScore: gp.totalScore,
+      },
+      totalScore: gp.totalScore,
+      seatPosition: gp.seatPosition || 0,
+    }
+  })
+
+  const rounds: UIRound[] = storageGame.rounds.map(round => ({
+    id: round.id,
+    roundNumber: round.roundNumber,
+    cardsPerPlayer: round.cardsPerPlayer,
+    trumpSuit: round.trumpSuit,
+    status: 'COMPLETED', // Assume completed if it exists
+    bids: round.bids.map(bid => {
+      const player = allPlayers.find(p => p.id === bid.playerId)
+      return {
+        id: generateId(),
+        playerId: bid.playerId,
+        player: {
+          id: bid.playerId,
+          name: player?.name || 'Unknown',
+          totalScore: 0,
+        },
+        bidAmount: bid.bidAmount,
+        tricksTaken: bid.tricksTaken,
+        score: bid.score,
+      }
+    }),
+  }))
+
+  return {
+    id: storageGame.id,
+    players,
+    currentRound: storageGame.currentRound,
+    totalRounds: storageGame.totalRounds,
+    playerCount: storageGame.playerCount,
+    status: storageGame.status.toUpperCase(),
+    rounds,
+  }
 }
 
 interface GameBoardProps {
@@ -52,8 +110,10 @@ interface GameBoardProps {
 }
 
 export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
-  const [game, setGame] = useState<Game | null>(null)
-  const [currentRound, setCurrentRound] = useState<Round | null>(null)
+  const { getGame, saveGame } = useGames()
+  const { players: allPlayers } = usePlayers()
+  const [game, setGame] = useState<UIGame | null>(null)
+  const [currentRound, setCurrentRound] = useState<UIRound | null>(null)
   const [bids, setBids] = useState<{ [playerId: string]: number }>({})
   const [tricksTaken, setTricksTaken] = useState<{ [playerId: string]: number }>({})
   const [trumpSuit, setTrumpSuit] = useState('')
@@ -64,23 +124,25 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
 
   const fetchGame = useCallback(async () => {
     try {
-      const response = await fetch(`/api/games/${gameId}`)
-      const gameData = await response.json()
-      setGame(gameData)
+      const storageGame = await getGame(gameId)
+      if (storageGame) {
+        const uiGame = convertStorageGameToUI(storageGame, allPlayers)
+        setGame(uiGame)
 
-      if (gameData.status === 'IN_PROGRESS') {
-        await startNextRound(gameData)
+        if (uiGame.status === 'IN_PROGRESS') {
+          await startNextRound(uiGame)
+        }
       }
     } catch (error) {
       console.error('Failed to fetch game:', error)
     }
-  }, [gameId])
+  }, [gameId, getGame, allPlayers])
 
   useEffect(() => {
     fetchGame()
   }, [fetchGame])
 
-  const startNextRound = async (gameData: Game) => {
+  const startNextRound = async (gameData: UIGame) => {
     const roundNumber = gameData.currentRound
     const cardsPerPlayer = roundNumber
 
@@ -163,7 +225,7 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
           ? {
               ...prev,
               status: 'PLAYING',
-              trumpSuit: trumpSuit || undefined,
+              trumpSuit: trumpSuit || '',
             }
           : null
       )
@@ -239,14 +301,14 @@ export default function GameBoard({ gameId, onGameEnd }: GameBoardProps) {
     }
   }
 
-  const handleEditRound = (round: Round) => {
+  const handleEditRound = (round: UIRound) => {
     setEditingRound(round.id)
 
     // Initialize edit state with current values
     const bidData: { [playerId: string]: number } = {}
     const trickData: { [playerId: string]: number } = {}
 
-    round.bids.forEach(bid => {
+    round.bids.forEach((bid: UIBid) => {
       bidData[bid.playerId] = bid.bidAmount
       trickData[bid.playerId] = bid.tricksTaken || 0
     })
