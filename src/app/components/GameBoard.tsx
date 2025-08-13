@@ -6,7 +6,12 @@ import {
   calculateScore,
 } from '@/lib/utils'
 import { useGames, usePlayers } from '@/hooks/useLocalStorage'
-import { Game as StorageGame, Round as StorageRound, Bid as StorageBid, Player } from '@/types/storage'
+import {
+  Game as StorageGame,
+  Round as StorageRound,
+  Bid as StorageBid,
+  Player,
+} from '@/types/storage'
 import { generateId } from '@/lib/uuid'
 
 // UI types for GameBoard component
@@ -98,11 +103,6 @@ function convertStorageGameToUI(storageGame: StorageGame, allPlayers: Player[]):
     rounds,
   }
 }
-
-
-
-
-
 
 interface GameBoardProps {
   gameId: string

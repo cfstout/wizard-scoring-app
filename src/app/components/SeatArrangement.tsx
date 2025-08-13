@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useGames, usePlayers } from '@/hooks/useLocalStorage'
 import { Game, Player } from '@/types/storage'
 
-
 interface SeatArrangementProps {
   gameId: string
   onSeatsArranged: () => void
@@ -25,7 +24,7 @@ export default function SeatArrangement({ gameId, onSeatsArranged }: SeatArrange
 
         // Initialize seats array
         const seatArray = new Array(gameData.playerCount).fill(null)
-        
+
         // Get actual player objects from the players list
         const gamePlayers = gameData.players
           .map(gp => allPlayers.find(p => p.id === gp.playerId))
